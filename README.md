@@ -96,6 +96,34 @@ Additional files and directories will be introduced as the project develops.
 - Configure `.gitignore`.
 
 **Next step:** Create the first static HTML page.
+### Iteration 1 — Static HTML Website
+
+**Objective:** Create a basic HTML page for the static website.
+
+**Implementation:**
+
+- Created `web/index.html`.
+- Added the student name and student number.
+- Added a project overview and infrastructure section.
+- Used semantic HTML elements to organise the page.
+
+**Design Decision:**
+
+I decided to use plain HTML without a frontend framework. 
+The first part of the assignment requires a static website, so a simple HTML page is sufficient.
+
+This approach has fewer dependencies and does not require a build process. 
+However, it provides fewer features than a modern frontend framework.
+
+AWS documentation confirms that Amazon S3 can store static website content, including HTML files [[3]](#ref-3).
+
+**Testing:**
+
+The page was opened locally in a web browser. The project title, student name, student number and other content were displayed correctly.
+
+**Next Step:**
+
+Create a CloudFormation template to provision an Amazon S3 bucket.
 
 ## 6. Design Decisions
 
@@ -133,3 +161,10 @@ Available at: [https://docs.aws.amazon.com/cloudformation/](https://docs.aws.ama
 Available
 at: [https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html) (
 Accessed: 21 October 2026).
+
+<a id="ref-3"></a>
+**[3]** Amazon Web Services (n.d.)
+*Hosting a static website using Amazon S3*.
+Available at:
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html
+(Accessed: 21 October 2026).
