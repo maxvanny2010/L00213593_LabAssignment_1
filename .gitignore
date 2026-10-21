@@ -1,0 +1,20 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Java / Maven
+target/
+*.class
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Credentials
+*.pem
+*.key
+
+# Operating system
+.DS_Store
+Thumbs.db
