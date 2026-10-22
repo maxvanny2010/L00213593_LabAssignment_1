@@ -565,6 +565,32 @@ For example, AWS recommends managing CloudFormation templates using version cont
 and reviewing changes before deployment [[2]](#ref-2).
 Future decisions will be linked to the specific AWS documentation used.
 
+#### S3 Direct Access Security Test
+
+**Objective**
+Verify that the static website is accessible through CloudFront while direct public access to the S3 bucket is denied.
+
+**Test**
+I sent an unauthenticated HTTP request directly to the S3 object:
+
+```powershell
+curl.exe -I https://atu-l00213593-web-897068845214-eu-west-1-an.s3.eu-west-1.amazonaws.com/index.html
+```
+
+**Expected Result:** `403 Forbidden`.
+
+**Actual Result:** `403 Forbidden`.
+
+**Conclusion**
+The test confirmed that direct anonymous access to the S3 object is denied.
+The website remains accessible through CloudFront over HTTPS.
+
+This is consistent with the private S3 origin configuration and Origin Access Control (OAC) approach recommended by
+AWS [[21]](#ref-21).
+
+**Security Test Screenshot**
+![S3 direct access denied](docs/screenshots/s3-access-denied.png)
+
 ## 7. Testing and Validation
 
 Each development stage will be tested before being merged into the main branch.
