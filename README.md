@@ -809,6 +809,36 @@ The CloudFormation template was successfully validated using `aws cloudformation
 **Limitation**
 The DynamoDB table has not yet been deployed. The Java Lambda integration will be implemented in a later iteration.
 
+### Iteration 8 — Lambda Execution Role
+
+**Objective**
+Define an IAM execution role for the Java Lambda function.
+
+**Implementation**
+
+- Added `MessageLambdaRole` to `infrastructure/three-tier.yaml`.
+- Configured a trust policy allowing AWS Lambda to assume the role.
+- Attached the AWS-managed `AWSLambdaBasicExecutionRole` policy for CloudWatch logging.
+- Added permissions for `dynamodb:PutItem`, `dynamodb:GetItem` and `dynamodb:Scan`.
+- Restricted DynamoDB access to the `MessagesTable` ARN using `!GetAtt`.
+
+**Design Decision**
+I decided to create a separate execution role for the Java Lambda function instead of using the IAM user that deploys
+the infrastructure.
+The role follows the principle of least privilege by granting access only to the required DynamoDB operations and the
+project table [[33]](#ref-33) [[34]](#ref-34).
+
+**Validation**
+The CloudFormation template was successfully validated using `aws cloudformation validate-template`.
+CloudFormation returned `CAPABILITY_IAM`, confirming that IAM resource creation must be explicitly acknowledged during
+deployment.
+
+**Result:** Template validation passed.
+
+**Limitation**
+The IAM role has not yet been deployed. The CloudFormation stack will require `CAPABILITY_IAM` and appropriate
+deployment permissions.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -1015,4 +1045,14 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pse
 <a id="ref-32"></a>
 **[32]** Amazon Web Services (n.d.) *AWS::DynamoDB::Table*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-dynamodb-table.html
+(Accessed: 22 October 2026).
+
+<a id="ref-33"></a>
+**[33]** Amazon Web Services (n.d.) *AWS::IAM::Role*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-role.html
+(Accessed: 22 October 2026).
+
+<a id="ref-34"></a>
+**[34]** Amazon Web Services (n.d.) *Defining Lambda function permissions with an execution role*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html
 (Accessed: 22 October 2026).
