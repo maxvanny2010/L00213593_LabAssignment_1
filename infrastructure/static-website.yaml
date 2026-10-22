@@ -112,3 +112,13 @@ Outputs:
   WebsiteBucketArn:
     Description: ARN of the private S3 bucket
     Value: !GetAtt WebsiteBucket.Arn
+
+  # HTTPS address of the website.
+  WebsiteURL:
+    Description: HTTPS URL of the CloudFront website
+    Value: !Sub 'https://${WebsiteDistribution.DomainName}'
+
+  WebsiteDistributionId:
+    Description: ID of the CloudFront distribution
+    Value: !Ref WebsiteDistribution
+

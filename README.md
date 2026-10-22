@@ -433,6 +433,20 @@ CloudFormation uses `!Sub` to insert the AWS partition, account ID and generated
 This avoids hardcoding resource identifiers and ensures that the bucket policy refers to the correct CloudFront
 distribution [[21]](#ref-21).
 
+#### CloudFront Outputs
+
+**Implementation**
+Added `WebsiteURL` and `WebsiteDistributionId` to the CloudFormation outputs.
+
+**Design Decision**
+I decided to use CloudFormation outputs instead of manually copying the distribution domain name and ID from the AWS
+Console.
+
+CloudFormation returns the generated distribution domain using `!GetAtt` syntax and the distribution ID using
+`!Ref` [[22]](#ref-22).
+
+The outputs will be verified after deployment.
+
 ## 6. Design Decisions
 
 Technical decisions will be documented during development.
@@ -577,4 +591,11 @@ Available at: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide
 *Restrict access to an Amazon S3 origin using Origin Access Control (OAC)*.
 Available at:
 https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html
+(Accessed: 22 October 2026).
+
+<a id="ref-22"></a>
+**[22]** Amazon Web Services (n.d.)
+*AWS::CloudFront::Distribution*.
+Available at:
+https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cloudfront-distribution.html
 (Accessed: 22 October 2026).
