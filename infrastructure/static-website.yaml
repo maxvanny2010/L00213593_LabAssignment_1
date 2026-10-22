@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  ATU CloudFormation Lab - Part A(a).
+  Creates a private S3 bucket for static website content.
+
+Resources:
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketNamePrefix: atu-l00213593-web
+      BucketNamespace: account-regional
+      # Prevent direct public access to the bucket.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+      # Disable ACL-based ownership management.
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+
+      # Encrypt objects using Amazon S3 managed keys.
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Project
+          Value: ATU-CloudFormation-Lab
+        - Key: StudentNumber
+          Value: L00213593
+        - Key: Environment
+          Value: Lab
+        - Key: Component
+          Value: StaticWebsite
+
+Outputs:
+  WebsiteBucketName:
+    Description: Name of the private S3 bucket
+    Value: !Ref WebsiteBucket
+
+  WebsiteBucketArn:
+    Description: ARN of the private S3 bucket
+    Value: !GetAtt WebsiteBucket.Arn
