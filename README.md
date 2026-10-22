@@ -136,6 +136,7 @@ Create a CloudFormation template to provision an Amazon S3 bucket.
 - Created `infrastructure/static-website.yaml` with `AWS::S3::Bucket`.
 - Enabled Block Public Access and `BucketOwnerEnforced` to disable ACL-based access management.
 - Configured SSE-S3 encryption (`AES256`), resource tags and CloudFormation outputs.
+  SSE-S3 uses Amazon S3 managed keys [[7]](#ref-7).
 - Used a recognisable bucket prefix with an account-regional namespace.
 
 **Access Control Decision:**
@@ -147,9 +148,8 @@ will be configured later to serve the website publicly.
 
 `BlockPublicAcls` prevents new public ACLs, while `IgnorePublicAcls` ignores existing
 public ACL permissions. These overlap with disabled ACLs, but are retained as an
-additional safeguard if the ownership configuration changes. `BlockPublicPolicy`
-blocks new public bucket policies, and `RestrictPublicBuckets` limits access where
-a bucket policy is public [[5]](#ref-5).
+additional safeguard if the ownership configuration changes. `BlockPublicPolicy` blocks new public bucket policies (not all bucket policies),
+and `RestrictPublicBuckets` limits access when a bucket policy is public [[5]](#ref-5).
 
 **Bucket Naming Decision:**
 
@@ -269,7 +269,7 @@ infrastructure had been deployed.
 
 AWS CLI configuration and authentication are documented in the official AWS CLI User Guide [[9]](#ref-9).
 
-#### 5. Extending IAM Permissions for Deployment
+#### Extending IAM Permissions for Deployment
 
 **Objective:** Allow the IAM user to deploy and manage the S3 infrastructure using CloudFormation.
 
@@ -315,8 +315,6 @@ IAM policy update: **Completed**.
 CloudFormation stack deployment: **Passed** (`CREATE_COMPLETE`).
 
 The initial permission set was sufficient for this S3-only deployment.
-
-**Reference:**
 
 AWS explains CloudFormation actions, resources and permissions in its IAM access
 control documentation [[10]](#ref-10).
@@ -373,14 +371,254 @@ The tagging response also included three automatically added CloudFormation tags
 
 **Conclusion:** The S3 resource was created and its access restrictions,
 encryption, object ownership and tags were confirmed using AWS CLI.
-This iteration has **not** yet provided a publicly accessible website.
-The next iteration will configure CloudFront and controlled access to S3.
+At the end of Iteration 2, the bucket was private and the website was not yet publicly accessible.
+Iteration 3 added CloudFront delivery and controlled access to S3.
+
+### Iteration 3 — CloudFront Delivery and Private S3 Access
+
+**Implementation**
+
+Added `AWS::CloudFront::OriginAccessControl` to the CloudFormation template.
+
+**Design Decision**
+
+I selected Origin Access Control (OAC) instead of the older Origin Access Identity (OAI).
+OAC allows CloudFront to send authenticated requests to a private S3 bucket using AWS Signature Version 4 [[17]](#ref-17).
+
+**Validation**
+
+The CloudFormation template was checked using `aws cloudformation validate-template`.
+
+#### CloudFront Distribution
+
+**Implementation**
+
+Added `AWS::CloudFront::Distribution` to deliver the static website through HTTPS.
+The distribution uses the private S3 bucket as its origin and connects to the previously configured OAC.
+
+**Design Decisions**
+
+I selected `PriceClass_100` to limit CloudFront delivery locations mainly to North America and Europe and help control
+costs [[18]](#ref-18).
+I configured `redirect-to-https` to redirect HTTP requests to HTTPS.
+Because OAC is used instead of the older OAI mechanism, `OriginAccessIdentity` is set to an empty string, as described
+in AWS documentation [[19]](#ref-19).
+I selected the AWS managed `CachingOptimized` cache policy to reduce repeated requests to S3. Its policy ID is provided
+in the official AWS documentation [[20]](#ref-20).
+
+#### S3 Bucket Policy for CloudFront
+
+**Implementation**
+
+Added `AWS::S3::BucketPolicy` to allow CloudFront to read objects from the private S3 bucket.
+
+**Design Decision**
+
+I decided to keep the S3 bucket private and allow access only through the configured CloudFront distribution.
+The policy grants `s3:GetObject` permission to the CloudFront service. The `AWS:SourceArn` condition restricts access to
+the specific distribution created by this project.
+This follows the AWS recommendation for using Origin Access Control with a private S3 origin [[21]](#ref-21).
+
+**Validation**
+
+The updated CloudFormation template was successfully checked using `aws cloudformation validate-template`.
+
+The CloudFront distribution and bucket policy were deployed successfully (stack status: `UPDATE_COMPLETE`).
+
+**CloudFront Distribution ARN**
+
+A CloudFront distribution defines how content is delivered from an origin, such as an S3 bucket. AWS automatically
+assigns a unique Distribution ID when the resource is created.
+
+The bucket policy uses `AWS:SourceArn` to restrict `s3:GetObject` access to this specific distribution.
+
+The ARN follows the AWS-defined format `arn:partition:cloudfront::account-id:distribution/distribution-id`.
+CloudFormation uses `!Sub` to insert the AWS partition, account ID and generated Distribution ID automatically.
+
+This avoids hardcoding resource identifiers and ensures that the bucket policy refers to the correct CloudFront
+distribution [[21]](#ref-21).
+
+#### CloudFront Outputs
+
+**Implementation**
+
+Added `WebsiteURL` and `WebsiteDistributionId` to the CloudFormation outputs.
+
+**Design Decision**
+
+I decided to use CloudFormation outputs instead of manually copying the distribution domain name and ID from the AWS
+Console.
+
+CloudFormation returns the generated distribution domain through `${WebsiteDistribution.DomainName}` inside `!Sub` (equivalent to `Fn::GetAtt`) and the distribution ID using `!Ref` [[22]](#ref-22).
+
+The outputs were verified after deployment using `aws cloudformation describe-stacks`.
+
+#### Extending IAM Permissions for CloudFront
+
+**Objective**
+
+Allow the `atu-devops-lab` IAM user to deploy and manage CloudFront resources using CloudFormation.
+
+**Implementation**
+
+Updated the existing customer-managed policy `ATU-CloudFormation-Lab-Policy`.
+Added permissions for:
+
+- Creating and managing CloudFront distributions.
+- Creating and managing Origin Access Controls (OAC).
+- Reading, updating and deleting the S3 bucket policy.
+
+**Design Decision**
+
+I extended the existing IAM policy instead of granting `AdministratorAccess`.
+CloudFront management permissions are restricted to distribution and OAC resources in my AWS account where supported.
+Some creation operations require `Resource: "*"`.
+This approach follows the principle of least privilege [[8]](#ref-8).
+
+**Limitation**
+
+The IAM policy was updated manually through the AWS Console and is not currently managed by the CloudFormation template.
+
+**Validation**
+
+The IAM policy changes were saved successfully.
+The permissions were successfully exercised during the CloudFormation deployment.
+
+#### Static Website Deployment and S3 Permissions
+
+**Objective**
+
+Upload the static HTML website to the private S3 bucket and verify that it is accessible through CloudFront.
+
+**Problem**
+
+The first attempt to upload `web/index.html` failed:
+
+```text
+AccessDenied: not authorized to perform: s3:PutObject
+because no identity-based policy allows the s3:PutObject action
+```
+
+The IAM user `atu-devops-lab` had permissions to create and configure the S3 bucket but did not have permission to
+upload objects.
+
+**Solution**
+
+I extended the existing IAM policy `ATU-CloudFormation-Lab-Policy` by adding a separate statement named
+`UploadWebsiteIndex`.
+
+```json
+{
+  "Sid": "UploadWebsiteIndex",
+  "Effect": "Allow",
+  "Action": "s3:PutObject",
+  "Resource": "arn:aws:s3:::atu-l00213593-web-897068845214-eu-west-1-an/index.html"
+}
+```
+
+I decided to restrict `s3:PutObject` to the specific `index.html` object instead of allowing uploads to all objects in
+the bucket.
+
+This follows the principle of least privilege [[8]](#ref-8).
+
+**Deployment**
+
+After updating the IAM policy, I repeated the upload:
+
+```powershell
+aws s3 cp web/index.html `
+  s3://atu-l00213593-web-897068845214-eu-west-1-an/index.html `
+  --content-type "text/html" `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Result:** The HTML file was uploaded successfully.
+
+**CloudFormation Verification**
+
+The `ATU-Static-Website` stack was successfully updated.
+Stack status: `UPDATE_COMPLETE`.
+CloudFormation returned the following outputs:
+
+| Output                | Value                                         |
+|-----------------------|-----------------------------------------------|
+| WebsiteBucketName     | `atu-l00213593-web-897068845214-eu-west-1-an` |
+| WebsiteDistributionId | `EV2KPMP2U0HIG`                               |
+| WebsiteURL            | https://d2caxeghfi5itf.cloudfront.net         |
+
+**Website Testing**
+
+I opened the CloudFront URL in a web browser using HTTPS.
+The website displayed correctly, including:
+
+- Project title and module information.
+- Student name and student number.
+- Project overview and infrastructure information.
+- Centred page layout and CSS styling.
+
+**Result: Passed**
+
+The static website is accessible through CloudFront over HTTPS while the S3 bucket remains private.
+
+**Website Screenshot**
+
+The screenshot below shows the static website successfully delivered through Amazon CloudFront over HTTPS.
+
+![Deployed ATU CloudFormation website](docs/screenshots/cloudfront-website.png)
+
+#### S3 Direct Access Security Test
+
+**Objective**
+
+Verify that the static website is accessible through CloudFront while direct public access to the S3 bucket is denied.
+
+**Test**
+
+I sent an unauthenticated HTTP request directly to the S3 object:
+
+```powershell
+curl.exe -I https://atu-l00213593-web-897068845214-eu-west-1-an.s3.eu-west-1.amazonaws.com/index.html
+```
+
+**Expected Result:** `403 Forbidden`.
+
+**Actual Result:** `403 Forbidden`.
+
+**Conclusion**
+
+The test confirmed that direct anonymous access to the S3 object is denied.
+The website remains accessible through CloudFront over HTTPS.
+
+This is consistent with the private S3 origin configuration and Origin Access Control (OAC) approach recommended by
+AWS [[21]](#ref-21).
+
+**Security Test Screenshot**
+
+![S3 direct access denied](docs/screenshots/s3-access-denied.png)
+
+#### CloudFront and S3 Access Control Diagram
+
+**Architecture Overview**
+
+The diagram below illustrates how CloudFront provides access to the static website while direct anonymous requests to
+the private S3 bucket are denied.
+
+![CloudFront and S3 access control architecture](docs/screenshots/cloudfront-s3-architecture.png)
+
+**Security Explanation**
+
+CloudFront uses Origin Access Control (OAC) to sign requests to the private S3 bucket.
+The bucket policy allows `s3:GetObject` only for requests from the configured CloudFront distribution, using the `AWS:SourceArn` condition.
+
+Direct anonymous requests are denied with `403 Forbidden`,
+as confirmed by the security test [[21]](#ref-21).
 
 ## 6. Design Decisions
 
-Technical decisions will be documented during development.
+The main technical decisions are recorded in the development iterations above.
 
-Each decision will include:
+The documentation records:
 
 - The selected approach.
 - The reason for choosing it.
@@ -390,14 +628,14 @@ Each decision will include:
 
 For example, AWS recommends managing CloudFormation templates using version control
 and reviewing changes before deployment [[2]](#ref-2).
-Future decisions will be linked to the specific AWS documentation used.
+Decisions are supported by relevant AWS documentation cited in the References section.
 
 ## 7. Testing and Validation
 
-Each development stage will be tested before being merged into the main branch.
+Each development stage is tested and documented before being merged into the main branch.
 
-Test results and any issues identified during development will be documented
-in the relevant iteration.
+Test results and issues are documented in the relevant iteration, including CloudFormation validation,
+stack status, website delivery over HTTPS and the direct S3 access denial.
 AWS recommends validating CloudFormation templates before deploying infrastructure [[2]](#ref-2).
 
 ## 8. References
@@ -409,9 +647,8 @@ Available at: [https://docs.aws.amazon.com/cloudformation/](https://docs.aws.ama
 
 <a id="ref-2"></a>
 **[2]** Amazon Web Services (n.d.) *CloudFormation best practices*.
-Available
-at: [https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html) (
-Accessed: 21 October 2026).
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html
+(Accessed: 21 October 2026).
 
 <a id="ref-3"></a>
 **[3]** Amazon Web Services (n.d.)
@@ -436,6 +673,11 @@ Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-contr
 Available at:
 https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html
 (Accessed: 21 October 2026).
+
+<a id="ref-7"></a>
+**[7]** Amazon Web Services (n.d.) *Using server-side encryption with Amazon S3 managed keys (SSE-S3)*.
+Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html
+(Accessed: 22 October 2026).
 
 <a id="ref-8"></a>
 **[8]** Amazon Web Services (n.d.)
@@ -487,4 +729,44 @@ Available at: https://docs.aws.amazon.com/cli/latest/reference/s3api/get-bucket-
 <a id="ref-16"></a>
 **[16]** Amazon Web Services (n.d.) *get-bucket-tagging — AWS CLI Command Reference*.
 Available at: https://docs.aws.amazon.com/cli/latest/reference/s3api/get-bucket-tagging.html
+(Accessed: 22 October 2026).
+
+<a id="ref-17"></a>
+**[17]** Amazon Web Services (n.d.)
+*AWS::CloudFront::OriginAccessControl*.
+Available at:
+https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cloudfront-originaccesscontrol.html
+(Accessed: 22 October 2026).
+
+<a id="ref-18"></a>
+**[18]** Amazon Web Services (n.d.)
+*Choosing the price class for a CloudFront distribution*.
+Available at:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html
+(Accessed: 22 October 2026).
+
+<a id="ref-19"></a>
+**[19]** Amazon Web Services (n.d.)
+*AWS::CloudFront::Distribution S3OriginConfig*.
+Available at:
+https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-cloudfront-distribution-s3originconfig.html
+(Accessed: 22 October 2026).
+
+<a id="ref-20"></a>
+**[20]** Amazon Web Services (n.d.) *Use managed cache policies*.
+Available at: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+(Accessed: 22 October 2026).
+
+<a id="ref-21"></a>
+**[21]** Amazon Web Services (n.d.)
+*Restrict access to an Amazon S3 origin using Origin Access Control (OAC)*.
+Available at:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html
+(Accessed: 22 October 2026).
+
+<a id="ref-22"></a>
+**[22]** Amazon Web Services (n.d.)
+*AWS::CloudFront::Distribution*.
+Available at:
+https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cloudfront-distribution.html
 (Accessed: 22 October 2026).

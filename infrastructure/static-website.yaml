@@ -39,6 +39,71 @@ Resources:
         - Key: Component
           Value: StaticWebsite
 
+  # Authenticate CloudFront requests to the private S3 bucket.
+  WebsiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "atu-l00213593-oac-${AWS::AccountId}"
+        Description: OAC for the ATU static website
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Deliver the static website over HTTPS.
+  WebsiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: ATU DevOps Lab static website
+        Enabled: true
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+
+        Origins:
+          - Id: WebsiteS3Origin
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt WebsiteOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+
+        DefaultCacheBehavior:
+          TargetOriginId: WebsiteS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          # AWS managed CachingOptimized policy.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  # Allow only this CloudFront distribution to read S3 objects.
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub
+                  - 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+                  - DistributionId: !Ref WebsiteDistribution
+
 Outputs:
   WebsiteBucketName:
     Description: Name of the private S3 bucket
@@ -47,3 +112,13 @@ Outputs:
   WebsiteBucketArn:
     Description: ARN of the private S3 bucket
     Value: !GetAtt WebsiteBucket.Arn
+
+  # HTTPS address of the website.
+  WebsiteURL:
+    Description: HTTPS URL of the CloudFront website
+    Value: !Sub 'https://${WebsiteDistribution.DomainName}'
+
+  WebsiteDistributionId:
+    Description: ID of the CloudFront distribution
+    Value: !Ref WebsiteDistribution
+

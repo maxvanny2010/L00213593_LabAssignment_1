@@ -2,19 +2,135 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>ATU CloudFormation Lab</title>
-</head>
-<body>
-<header>
-    <h1>ATU CloudFormation Lab</h1>
-    <p>Student: Maksym Voronianskyi</p>
-    <p>Student Number: L00213593</p>
-</header>
 
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 48px 20px;
+            background-color: #f1f4f8;
+            color: #253247;
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }
+
+        main {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 48px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+        }
+
+        header {
+            padding-bottom: 24px;
+            border-bottom: 2px solid #dbe5f0;
+        }
+
+        h1 {
+            margin: 0 0 24px;
+            color: #12345b;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .student-info {
+            padding: 16px 20px;
+            background-color: #edf3fa;
+            border-left: 4px solid #2563a6;
+            border-radius: 6px;
+        }
+
+        .student-info p {
+            margin: 6px 0;
+        }
+
+        .student-info strong {
+            color: #12345b;
+            font-weight: 700;
+        }
+
+        section {
+            margin-top: 32px;
+        }
+
+        h2 {
+            margin: 0 0 16px;
+            padding-bottom: 8px;
+            color: #17365d;
+            font-size: 22px;
+            font-weight: 700;
+            border-bottom: 1px solid #dbe5f0;
+        }
+
+        p {
+            margin: 12px 0;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dbe5f0;
+            color: #66758a;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .module-title {
+            margin: -10px 0 24px;
+            color: #36577d;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 20px 12px;
+            }
+
+            main {
+                padding: 28px 20px;
+            }
+
+            h1 {
+                font-size: 26px;
+            }
+
+            h2 {
+                font-size: 20px;
+            }
+
+            .student-info {
+                padding: 12px 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
 <main>
+    <header>
+        <h1>ATU CloudFormation Lab</h1>
+
+        <p class="module-title">
+            DVOP_IT901 - LY_IDVOP_G:
+            IaC for DevOps Pipelines (2026/27)
+        </p>
+
+        <div class="student-info">
+            <p><strong>Student: Maksym Voronianskyi</strong></p>
+            <p><strong>Student Number: L00213593</strong></p>
+        </div>
+    </header>
     <section>
         <h2>Project Overview</h2>
         <p>
@@ -30,10 +146,10 @@
             AWS CloudFormation and Amazon S3.
         </p>
     </section>
-</main>
 
-<footer>
-    <p>Atlantic Technological University</p>
-</footer>
+    <footer>
+        <p>Atlantic Technological University</p>
+    </footer>
+</main>
 </body>
 </html>
