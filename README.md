@@ -447,6 +447,33 @@ CloudFormation returns the generated distribution domain using `!GetAtt` syntax 
 
 The outputs will be verified after deployment.
 
+#### Extending IAM Permissions for CloudFront
+
+**Objective**
+Allow the `atu-devops-lab` IAM user to deploy and manage CloudFront resources using CloudFormation.
+
+**Implementation**
+Updated the existing customer-managed policy `ATU-CloudFormation-Lab-Policy`.
+Added permissions for:
+
+- Creating and managing CloudFront distributions.
+- Creating and managing Origin Access Controls (OAC).
+- Reading, updating and deleting the S3 bucket policy.
+
+**Design Decision**
+
+I extended the existing IAM policy instead of granting `AdministratorAccess`.
+CloudFront management permissions are restricted to distribution and OAC resources in my AWS account where supported.
+Some creation operations require `Resource: "*"`.
+This approach follows the principle of least privilege [[8]](#ref-8).
+
+**Limitation**
+The IAM policy was updated manually through the AWS Console and is not currently managed by the CloudFormation template.
+
+**Validation**
+The IAM policy changes were saved successfully.
+The new permissions will be tested during CloudFormation deployment.
+
 ## 6. Design Decisions
 
 Technical decisions will be documented during development.
