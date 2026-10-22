@@ -376,6 +376,19 @@ encryption, object ownership and tags were confirmed using AWS CLI.
 This iteration has **not** yet provided a publicly accessible website.
 The next iteration will configure CloudFront and controlled access to S3.
 
+### Iteration 3: CloudFront Origin Access Control
+
+**Implementation**
+Added `AWS::CloudFront::OriginAccessControl` to the CloudFormation template.
+
+**Design Decision**
+I selected Origin Access Control (OAC) instead of the older Origin Access Identity (OAI).
+OAC allows CloudFront to send authenticated requests to a private S3 bucket using AWS Signature Version
+4 [[17]](#ref-17).
+
+**Validation**
+The CloudFormation template was checked using `aws cloudformation validate-template`.
+
 ## 6. Design Decisions
 
 Technical decisions will be documented during development.
@@ -487,4 +500,11 @@ Available at: https://docs.aws.amazon.com/cli/latest/reference/s3api/get-bucket-
 <a id="ref-16"></a>
 **[16]** Amazon Web Services (n.d.) *get-bucket-tagging — AWS CLI Command Reference*.
 Available at: https://docs.aws.amazon.com/cli/latest/reference/s3api/get-bucket-tagging.html
+(Accessed: 22 October 2026).
+
+<a id="ref-17"></a>
+**[17]** Amazon Web Services (n.d.)
+*AWS::CloudFront::OriginAccessControl*.
+Available at:
+https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cloudfront-originaccesscontrol.html
 (Accessed: 22 October 2026).
