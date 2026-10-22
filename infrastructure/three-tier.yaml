@@ -57,6 +57,26 @@ Resources:
                   - dynamodb:Scan
                 Resource: !GetAtt MessagesTable.Arn
 
+  # Java application running on AWS Lambda
+  MessageLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Java Lambda for the ATU Student Message Board
+      Runtime: java21
+      Handler: ie.atu.lab.MessageHandler::handleRequest
+      Role: !GetAtt MessageLambdaRole.Arn
+
+      Code:
+        S3Bucket: atu-l00213593-lambda-897068845214-eu-west-1-an
+        S3Key: lambda/student-message-board-1.0-SNAPSHOT.jar
+
+      MemorySize: 512
+      Timeout: 15
+
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MessagesTable
+
 Outputs:
 
   MessagesTableName:

@@ -1012,6 +1012,52 @@ The AWS CLI `head-object` command confirmed:
 
 The JAR is stored in S3, but the Java Lambda function has not yet been deployed.
 
+### Iteration 12 — Java Lambda Function Definition
+
+**Objective**
+
+Define the Java Lambda function in CloudFormation using the deployment artifact stored in Amazon S3.
+
+**Implementation**
+
+- Added `MessageLambdaFunction` to `infrastructure/three-tier.yaml`.
+- Configured the Java 21 runtime and `MessageHandler`.
+- Referenced the JAR previously uploaded to the private Lambda artifacts S3 bucket.
+- Connected the function to `MessageLambdaRole`.
+- Configured 512 MB of memory and a 15-second timeout.
+- Passed the DynamoDB table name using the `TABLE_NAME` environment variable.
+
+**Design Decision**
+I reused the existing S3 deployment artifact instead of embedding application code into the CloudFormation template.
+The Lambda function uses the execution role defined in Iteration 8.
+The application does not require access to resources inside a customer-managed VPC. Therefore, I decided not to
+configure `VpcConfig` at this stage [[42]](#ref-42).
+
+**Static Analysis Review**
+The template analysis reported two recommendations:
+
+1. Remove the inline `Policies` property from the IAM Role.
+2. Configure `VpcConfig.SecurityGroupIds` and `VpcConfig.SubnetIds`.
+
+I kept the inline IAM policy because it grants permissions only to the required DynamoDB operations on the project
+table. I may refactor it into a separate policy resource later.
+
+I did not add a VPC configuration because the application currently uses managed AWS services and does not require
+access to private VPC resources.
+
+These recommendations remain documented rather than being treated as successful security checks.
+
+**Validation**
+The template was validated using `aws cloudformation validate-template`.
+CloudFormation returned `CAPABILITY_IAM` because the template contains an IAM Role.
+
+**Result:** Template validation passed.
+
+**Limitation**
+
+The Java Lambda function has not yet been deployed or tested in AWS. DynamoDB application logic and API Gateway
+integration are still pending.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -1262,8 +1308,14 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html
 (Accessed: 22 October 2026).
 
-
 <a id="ref-41"></a>
 **[41]** Amazon Web Services (n.d.) *HeadObject — Amazon S3 API Reference*.
 Available at: https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
 (Accessed: 22 October 2026).
+
+
+<a id="ref-42"></a>
+**[42]** Amazon Web Services (n.d.) *Configure a Lambda function to access resources in a VPC*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html
+(Accessed: 23 October 2026).
+
