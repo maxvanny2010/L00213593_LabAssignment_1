@@ -839,6 +839,53 @@ deployment.
 The IAM role has not yet been deployed. The CloudFormation stack will require `CAPABILITY_IAM` and appropriate
 deployment permissions.
 
+### Iteration 9 — DynamoDB Template Review and Security Checks
+
+**Objective**
+Review static-analysis findings for the DynamoDB table and document why additional CloudFormation settings were
+considered.
+
+**How the changes were identified**
+After defining the `MessagesTable` resource, I inspected the CloudFormation template using editor/static-analysis
+checks. The checks reported missing `DeletionPolicy`, `UpdateReplacePolicy` and `SSESpecification` properties. These
+findings prompted me to consult the official AWS CloudFormation and DynamoDB documentation rather than assuming that the
+properties were mandatory or that the table was unencrypted.
+
+**Resource lifecycle decisions**
+- `DeletionPolicy` controls what happens when the stack is deleted or when the table resource is removed from the
+  template [[35]](#ref-35).
+- `UpdateReplacePolicy` controls what happens to the previous physical table if a stack update replaces
+  it [[36]](#ref-36).
+- For this temporary lab table, I chose to explicitly specify `Delete` for both properties to make the cleanup behaviour
+  clear and avoid retaining unused lab resources. This decision accepts the risk of losing test messages during stack
+  deletion or resource replacement.
+- A production database containing important information would require a different data-retention and recovery decision;
+  `Retain` would be safer than deleting its data automatically.
+
+**Encryption review**
+The security check first reported that `SSESpecification` was missing. After I explicitly set `SSEEnabled: false`, it
+reported that its required value was `true`.
+
+I checked the AWS documentation and found that DynamoDB encrypts all table data at rest by default. For CloudFormation,
+`SSEEnabled: false` or omitting `SSESpecification` uses an AWS owned key, whereas `SSEEnabled: true` selects AWS KMS
+encryption using an AWS managed key, which has different key-management characteristics and may have different cost
+implications [[37]](#ref-37) [[38]](#ref-38).
+
+For this small educational project, I selected the AWS owned key to keep the lab configuration simple and avoid choosing
+a different key-management model without a requirement. This keeps encryption at rest enabled, but **does not satisfy**
+the particular static-analysis rule requiring `SSEEnabled: true`. I am documenting that distinction rather than claiming
+that all security checks passed.
+
+**Validation and current status**
+- The previous CloudFormation template validation succeeded before these latest lifecycle/encryption edits.
+- The static-analysis finding for `SSEEnabled: true` remains unresolved by design while `SSEEnabled: false` is used.
+- The updated template still needs another `aws cloudformation validate-template` check after these edits.
+- The Part A(b) stack and DynamoDB table have not yet been deployed.
+
+**References**
+AWS documents the lifecycle attributes, DynamoDB encryption-key behaviour and encryption at rest in
+references [[35]](#ref-35)–[[38]](#ref-38).
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -1055,4 +1102,26 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 <a id="ref-34"></a>
 **[34]** Amazon Web Services (n.d.) *Defining Lambda function permissions with an execution role*.
 Available at: https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html
+(Accessed: 22 October 2026).
+
+<a id="ref-35"></a>
+**[35]** Amazon Web Services (n.d.) *DeletionPolicy attribute*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-deletionpolicy.html
+(Accessed: 22 October 2026).
+
+<a id="ref-36"></a>
+**[36]** Amazon Web Services (n.d.) *UpdateReplacePolicy attribute*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-updatereplacepolicy.html
+(Accessed: 22 October 2026).
+
+<a id="ref-37"></a>
+**[37]** Amazon Web Services (n.d.) *AWS::DynamoDB::Table SSESpecification*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-dynamodb-table-ssespecification.html
+(Accessed: 22 October 2026).
+
+<a id="ref-38"></a>
+**[38]** Amazon Web Services (n.d.) *DynamoDB encryption at rest usage notes*.
+Available at: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/encryption.usagenotes.html
 (Accessed: 22 October 2026).

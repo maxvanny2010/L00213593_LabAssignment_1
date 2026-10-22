@@ -9,9 +9,13 @@ Resources:
   # Store messages submitted through the application
   MessagesTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       TableName: !Sub '${AWS::StackName}-messages'
       BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: false
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
