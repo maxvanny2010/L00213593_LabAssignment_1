@@ -1,0 +1,34 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  ATU CloudFormation Lab - Part A(b).
+  Three-tier architecture using API Gateway, Java Lambda and DynamoDB.
+
+Resources:
+
+  # Store messages submitted through the application
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-messages'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: ATU-CloudFormation-Lab
+        - Key: StudentNumber
+          Value: L00213593
+        - Key: Component
+          Value: DatabaseTier
+
+Outputs:
+
+  MessagesTableName:
+    Description: Name of the DynamoDB messages table
+    Value: !Ref MessagesTable

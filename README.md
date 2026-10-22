@@ -781,6 +781,34 @@ warnings did not prevent the build.
 The Lambda function has not yet been deployed to AWS. API Gateway and DynamoDB integration will be implemented in the
 next iterations.
 
+### Iteration 7 — DynamoDB Database Tier
+
+**Objective**
+Define a DynamoDB table for storing messages in the three-tier application.
+
+**Implementation**
+
+- Added the `MessagesTable` resource to `infrastructure/three-tier.yaml`.
+- Configured the `id` attribute as a String partition key.
+- Selected `PAY_PER_REQUEST` billing mode.
+- Added resource tags and a CloudFormation output for the table name.
+
+**Design Decision**
+I selected Amazon DynamoDB because it is a managed NoSQL database and does not require database server administration.
+The `PAY_PER_REQUEST` billing mode was selected because the application is small and the number of requests is expected
+to be low.
+The table name is generated using `!Sub` and the `${AWS::StackName}` pseudo parameter instead of hardcoding the stack
+name [[30]](#ref-30) [[31]](#ref-31).
+The table is defined using the `AWS::DynamoDB::Table` resource [[32]](#ref-32).
+
+**Validation**
+The CloudFormation template was successfully validated using `aws cloudformation validate-template`.
+
+**Result:** Template validation passed.
+
+**Limitation**
+The DynamoDB table has not yet been deployed. The Java Lambda integration will be implemented in a later iteration.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -971,4 +999,20 @@ Available at: https://docs.aws.amazon.com/lambda/latest/dg/java-package.html
 <a id="ref-29"></a>
 **[29]** Apache Software Foundation (n.d.) *Apache Maven Shade Plugin*.
 Available at: https://maven.apache.org/plugins/maven-shade-plugin/
+(Accessed: 22 October 2026).
+
+<a id="ref-30"></a>
+**[30]** Amazon Web Services (n.d.) *Fn::Sub — CloudFormation intrinsic function*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-sub.html
+(Accessed: 22 October 2026).
+
+<a id="ref-31"></a>
+**[31]** Amazon Web Services (n.d.) *CloudFormation pseudo parameters*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pseudo-parameter-reference.html
+(Accessed: 22 October 2026).
+
+<a id="ref-32"></a>
+**[32]** Amazon Web Services (n.d.) *AWS::DynamoDB::Table*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-dynamodb-table.html
 (Accessed: 22 October 2026).
