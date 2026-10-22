@@ -148,7 +148,8 @@ will be configured later to serve the website publicly.
 
 `BlockPublicAcls` prevents new public ACLs, while `IgnorePublicAcls` ignores existing
 public ACL permissions. These overlap with disabled ACLs, but are retained as an
-additional safeguard if the ownership configuration changes. `BlockPublicPolicy` blocks new public bucket policies (not all bucket policies),
+additional safeguard if the ownership configuration changes. `BlockPublicPolicy` blocks new public bucket policies (not
+all bucket policies),
 and `RestrictPublicBuckets` limits access when a bucket policy is public [[5]](#ref-5).
 
 **Bucket Naming Decision:**
@@ -383,7 +384,8 @@ Added `AWS::CloudFront::OriginAccessControl` to the CloudFormation template.
 **Design Decision**
 
 I selected Origin Access Control (OAC) instead of the older Origin Access Identity (OAI).
-OAC allows CloudFront to send authenticated requests to a private S3 bucket using AWS Signature Version 4 [[17]](#ref-17).
+OAC allows CloudFront to send authenticated requests to a private S3 bucket using AWS Signature Version
+4 [[17]](#ref-17).
 
 **Validation**
 
@@ -449,7 +451,8 @@ Added `WebsiteURL` and `WebsiteDistributionId` to the CloudFormation outputs.
 I decided to use CloudFormation outputs instead of manually copying the distribution domain name and ID from the AWS
 Console.
 
-CloudFormation returns the generated distribution domain through `${WebsiteDistribution.DomainName}` inside `!Sub` (equivalent to `Fn::GetAtt`) and the distribution ID using `!Ref` [[22]](#ref-22).
+CloudFormation returns the generated distribution domain through `${WebsiteDistribution.DomainName}` inside `!Sub` (
+equivalent to `Fn::GetAtt`) and the distribution ID using `!Ref` [[22]](#ref-22).
 
 The outputs were verified after deployment using `aws cloudformation describe-stacks`.
 
@@ -609,10 +612,39 @@ the private S3 bucket are denied.
 **Security Explanation**
 
 CloudFront uses Origin Access Control (OAC) to sign requests to the private S3 bucket.
-The bucket policy allows `s3:GetObject` only for requests from the configured CloudFront distribution, using the `AWS:SourceArn` condition.
+The bucket policy allows `s3:GetObject` only for requests from the configured CloudFront distribution, using the
+`AWS:SourceArn` condition.
 
 Direct anonymous requests are denied with `403 Forbidden`,
 as confirmed by the security test [[21]](#ref-21).
+
+### Iteration 4 — S3 Versioning
+
+**Objective**
+Enable S3 Versioning to preserve previous versions of website files.
+
+**Implementation**
+Added `VersioningConfiguration` to the `WebsiteBucket` resource in `infrastructure/static-website.yaml`.
+
+```yaml
+VersioningConfiguration:
+  Status: Enabled
+```
+
+**Design Decision**
+I decided to enable S3 Versioning to protect website files from accidental overwriting or deletion.
+When a new version of `index.html` is uploaded, Amazon S3 retains the previous version. This makes it possible to
+recover earlier website content if needed [[23]](#ref-23).
+
+**Limitation**
+Previous versions consume storage space and may increase costs. A Lifecycle rule will be added in the next stage to
+manage older versions.
+
+**Validation**
+The CloudFormation template was checked using `aws cloudformation validate-template`.
+
+Deployment and verification of S3 Versioning will be performed together with the Lifecycle configuration in the next
+stage.
 
 ## 6. Design Decisions
 
@@ -769,4 +801,9 @@ https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-conte
 *AWS::CloudFront::Distribution*.
 Available at:
 https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cloudfront-distribution.html
+(Accessed: 22 October 2026)
+
+<a id="ref-23"></a>
+**[23]** Amazon Web Services (n.d.) *Using versioning in S3 buckets*.
+Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html
 (Accessed: 22 October 2026).

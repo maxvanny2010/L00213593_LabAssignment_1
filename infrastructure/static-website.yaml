@@ -12,6 +12,10 @@ Resources:
     Properties:
       BucketNamePrefix: atu-l00213593-web
       BucketNamespace: account-regional
+
+      # Preserve previous versions of website files
+      VersioningConfiguration:
+        Status: Enabled
       # Prevent direct public access to the bucket.
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
