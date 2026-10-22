@@ -2,7 +2,6 @@
 
 [![Launch AWS Cloud Website](https://img.shields.io/badge/AWS_CLOUD-LAUNCH_WEBSITE-FF9900?style=for-the-badge&labelColor=232F3E&logo=amazonaws&logoColor=white)](https://d2caxeghfi5itf.cloudfront.net/)
 
-
 **Atlantic Technological University (ATU)**
 
 **Programme:** Postgraduate Diploma in Computing in DevOps
@@ -736,6 +735,52 @@ I repeated the CloudFormation deployment successfully.
 
 This approach follows the principle of least privilege [[8]](#ref-8).
 
+### Iteration 6 — Three-Tier Architecture: Java Lambda Setup
+
+**Objective**
+
+Prepare a Java application for the Application Tier of Part A(b).
+
+**Implementation**
+
+- Created the Maven project with `pom.xml` in the repository root and the handler at
+  `src/main/java/ie/atu/lab/MessageHandler.java`.
+- Configured the Maven Compiler Plugin to compile the application using Java 21, a runtime supported by AWS
+  Lambda [[25]](#ref-25).
+- Added `com.amazonaws:aws-lambda-java-core` for the `RequestHandler` interface and Lambda `Context`
+  object [[26]](#ref-26).
+- Added the AWS SDK for Java 2.x `software.amazon.awssdk:dynamodb` module for future database
+  operations [[27]](#ref-27).
+- Imported the AWS SDK BOM under Maven `dependencyManagement` to manage compatible SDK module versions without declaring
+  a separate version for DynamoDB [[27]](#ref-27).
+- Configured Maven Shade Plugin to package the Java code and dependencies into a single JAR for Lambda
+  deployment [[28]](#ref-28) [[29]](#ref-29).
+- Implemented a basic `MessageHandler` returning a JSON response. The `RequestHandler` interface, `handleRequest` method
+  and `Context` logging API follow the AWS Lambda Java handler documentation [[26]](#ref-26).
+
+**Design Decision**
+
+I selected Java 21 and Maven for the Application Tier. I decided to use a simple Java Lambda handler instead of Spring
+Boot to keep the application small and avoid unnecessary dependencies.
+
+The AWS SDK BOM manages the versions of AWS SDK modules, while `aws-lambda-java-core` is declared separately because it
+does not belong to the `software.amazon.awssdk` BOM [[27]](#ref-27).
+
+Maven Shade Plugin creates a deployment JAR containing the application and its
+dependencies [[28]](#ref-28) [[29]](#ref-29).
+
+**Validation**
+
+The Maven project was successfully built from the repository root using `mvn clean package`.
+
+**Result:** `BUILD SUCCESS`. Maven Shade Plugin reported overlapping `META-INF` resources during packaging; these
+warnings did not prevent the build.
+
+**Limitation**
+
+The Lambda function has not yet been deployed to AWS. API Gateway and DynamoDB integration will be implemented in the
+next iterations.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -901,4 +946,29 @@ Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.h
 <a id="ref-24"></a>
 **[24]** Amazon Web Services (n.d.) *Managing the lifecycle of objects*.
 Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
+(Accessed: 22 October 2026).
+
+<a id="ref-25"></a>
+**[25]** Amazon Web Services (n.d.) *Lambda runtimes*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
+(Accessed: 22 October 2026).
+
+<a id="ref-26"></a>
+**[26]** Amazon Web Services (n.d.) *Define Lambda function handler in Java*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/java-handler.html
+(Accessed: 22 October 2026).
+
+<a id="ref-27"></a>
+**[27]** Amazon Web Services (n.d.) *Set up an Apache Maven project that uses the AWS SDK for Java 2.x*.
+Available at: https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/setup-project-maven.html
+(Accessed: 22 October 2026).
+
+<a id="ref-28"></a>
+**[28]** Amazon Web Services (n.d.) *Deploy Java Lambda functions with .zip or JAR file archives*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/java-package.html
+(Accessed: 22 October 2026).
+
+<a id="ref-29"></a>
+**[29]** Apache Software Foundation (n.d.) *Apache Maven Shade Plugin*.
+Available at: https://maven.apache.org/plugins/maven-shade-plugin/
 (Accessed: 22 October 2026).
