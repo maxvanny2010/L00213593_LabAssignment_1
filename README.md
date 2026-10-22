@@ -637,14 +637,78 @@ When a new version of `index.html` is uploaded, Amazon S3 retains the previous v
 recover earlier website content if needed [[23]](#ref-23).
 
 **Limitation**
-Previous versions consume storage space and may increase costs. A Lifecycle rule will be added in the next stage to
+Previous versions consume storage space and may increase costs. A Lifecycle rule was added in Iteration 5 to
 manage older versions.
 
 **Validation**
-The CloudFormation template was checked using `aws cloudformation validate-template`.
 
-Deployment and verification of S3 Versioning will be performed together with the Lifecycle configuration in the next
-stage.
+The CloudFormation template was successfully validated using `aws cloudformation validate-template`.
+
+The `ATU-Static-Website` stack was successfully updated using `aws cloudformation deploy`.
+
+S3 Versioning was verified using `aws s3api get-bucket-versioning`.
+
+**Result: Passed**
+
+The command returned `Status: Enabled`, confirming that S3 Versioning is enabled.
+
+### Iteration 5 — S3 Lifecycle Management
+
+**Objective**
+Automatically remove previous versions of website files to reduce unnecessary storage costs.
+
+**Implementation**
+Added `LifecycleConfiguration` to the `WebsiteBucket` resource in `infrastructure/static-website.yaml`.
+
+```yaml
+LifecycleConfiguration:
+  Rules:
+    - Id: DeleteOldWebsiteVersions
+      Status: Enabled
+      NoncurrentVersionExpiration:
+        NoncurrentDays: 30
+```
+
+**Design Decision**
+
+I decided to keep previous versions of website files for 30 days after they become noncurrent.
+S3 Lifecycle automatically removes these older versions after the retention period while preserving the current version
+of `index.html`.
+This helps control storage costs while allowing recently replaced files to be recovered [[24]](#ref-24).
+
+**Limitation**
+Lifecycle expiration is asynchronous. S3 may not physically remove an eligible version immediately after the retention
+period.
+
+**Validation**
+
+The CloudFormation template was successfully validated using `aws cloudformation validate-template`.
+
+The Lifecycle configuration was successfully deployed through CloudFormation.
+
+I verified the configuration using `aws s3api get-bucket-lifecycle-configuration`.
+
+**Result: Passed**
+
+The response confirmed that the `DeleteOldWebsiteVersions` rule is enabled and configured to expire noncurrent object
+versions after 30 days.
+
+**IAM Permission Troubleshooting**
+
+The first CloudFormation deployment failed because the IAM user `atu-devops-lab` did not have permission to perform
+`s3:PutLifecycleConfiguration`. CloudFormation reported `UPDATE_FAILED` for `WebsiteBucket` and then completed the
+rollback (`UPDATE_ROLLBACK_COMPLETE`).
+
+I extended the customer-managed policy `ATU-CloudFormation-Lab-Policy` with a separate statement named
+`ManageWebsiteVersioningAndLifecycle`.
+
+The statement grants `s3:PutBucketVersioning`, `s3:GetBucketVersioning`, `s3:PutLifecycleConfiguration` and
+`s3:GetLifecycleConfiguration` on the specific website bucket only.
+
+The first retry also failed because I had not saved the IAM policy changes in the AWS Console. After saving the policy,
+I repeated the CloudFormation deployment successfully.
+
+This approach follows the principle of least privilege [[8]](#ref-8).
 
 ## 6. Design Decisions
 
@@ -806,4 +870,9 @@ https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resou
 <a id="ref-23"></a>
 **[23]** Amazon Web Services (n.d.) *Using versioning in S3 buckets*.
 Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html
+(Accessed: 22 October 2026).
+
+<a id="ref-24"></a>
+**[24]** Amazon Web Services (n.d.) *Managing the lifecycle of objects*.
+Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
 (Accessed: 22 October 2026).

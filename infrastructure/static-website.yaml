@@ -16,6 +16,13 @@ Resources:
       # Preserve previous versions of website files
       VersioningConfiguration:
         Status: Enabled
+
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldWebsiteVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
       # Prevent direct public access to the bucket.
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
