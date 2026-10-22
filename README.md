@@ -474,6 +474,81 @@ The IAM policy was updated manually through the AWS Console and is not currently
 The IAM policy changes were saved successfully.
 The new permissions will be tested during CloudFormation deployment.
 
+#### Static Website Deployment and S3 Permissions
+
+**Objective**
+Upload the static HTML website to the private S3 bucket and verify that it is accessible through CloudFront.
+
+**Problem**
+The first attempt to upload `web/index.html` failed:
+
+```text
+AccessDenied: not authorized to perform: s3:PutObject
+because no identity-based policy allows the s3:PutObject action
+```
+
+The IAM user `atu-devops-lab` had permissions to create and configure the S3 bucket but did not have permission to
+upload objects.
+
+**Solution**
+I extended the existing IAM policy `ATU-CloudFormation-Lab-Policy` by adding a separate statement named
+`UploadWebsiteIndex`.
+
+```json
+{
+  "Sid": "UploadWebsiteIndex",
+  "Effect": "Allow",
+  "Action": "s3:PutObject",
+  "Resource": "arn:aws:s3:::atu-l00213593-web-897068845214-eu-west-1-an/index.html"
+}
+```
+
+I decided to restrict `s3:PutObject` to the specific `index.html` object instead of allowing uploads to all objects in
+the bucket.
+
+This follows the principle of least privilege [[8]](#ref-8).
+
+**Deployment**
+After updating the IAM policy, I repeated the upload:
+
+```powershell
+aws s3 cp web/index.html `
+  s3://atu-l00213593-web-897068845214-eu-west-1-an/index.html `
+  --content-type "text/html" `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Result:** The HTML file was uploaded successfully.
+
+**CloudFormation Verification**
+The `ATU-Static-Website` stack was successfully updated.
+Stack status: `UPDATE_COMPLETE`.
+CloudFormation returned the following outputs:
+
+| Output                | Value                                         |
+|-----------------------|-----------------------------------------------|
+| WebsiteBucketName     | `atu-l00213593-web-897068845214-eu-west-1-an` |
+| WebsiteDistributionId | `EV2KPMP2U0HIG`                               |
+| WebsiteURL            | https://d2caxeghfi5itf.cloudfront.net         |
+
+**Website Testing**
+I opened the CloudFront URL in a web browser using HTTPS.
+The website displayed correctly, including:
+
+- Project title and module information.
+- Student name and student number.
+- Project overview and infrastructure information.
+- Centred page layout and CSS styling.
+
+**Result: Passed**
+The static website is accessible through CloudFront over HTTPS while the S3 bucket remains private.
+
+**Website Screenshot**
+The screenshot below shows the static website successfully delivered through Amazon CloudFront over HTTPS.
+
+![Deployed ATU CloudFormation website](docs/screenshots/cloudfront-website.png)
+
 ## 6. Design Decisions
 
 Technical decisions will be documented during development.
