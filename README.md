@@ -1,9 +1,13 @@
 # ATU CloudFormation Lab
 
+[![Launch AWS Cloud Website](https://img.shields.io/badge/AWS_CLOUD-LAUNCH_WEBSITE-FF9900?style=for-the-badge&labelColor=232F3E&logo=amazonaws&logoColor=white)](https://d2caxeghfi5itf.cloudfront.net/)
+
+
 **Atlantic Technological University (ATU)**
 
-**Programme:** Postgraduate Diploma in Computing in DevOps  
-**Module:** Infrastructure as Code for DevOps Pipelines  
+**Programme:** Postgraduate Diploma in Computing in DevOps
+**Module:** Infrastructure as Code for DevOps Pipelines
+
 **Lecturer:** Ruth Lennon  
 **Student:** Maksym Voronianskyi  
 **Student Number:** L00213593  
@@ -31,12 +35,34 @@ for infrastructure templates [[2]](#ref-2).
 
 The project consists of two main parts.
 
-### Part A(a) — Static Website
+### Part A(a) — Implementation Status
 
-Create and deploy a static website using AWS CloudFormation.
+The static website infrastructure has been deployed and verified using AWS CloudFormation.
 
-The website content will be stored in an Amazon S3 bucket
-and delivered through a public-facing web service.
+| Component              | Implementation                                            | Status    |
+|------------------------|-----------------------------------------------------------|-----------|
+| Amazon S3              | Private bucket provisioned using CloudFormation           | Completed |
+| S3 Security            | Block Public Access, Bucket Policy and disabled ACLs      | Completed |
+| Amazon CloudFront      | HTTPS delivery using Origin Access Control (OAC)          | Completed |
+| Static Website         | HTML page deployed and accessible through CloudFront      | Completed |
+| S3 Encryption          | Server-side encryption using SSE-S3 (AES256)              | Completed |
+| S3 Versioning          | Previous object versions are preserved                    | Completed |
+| S3 Lifecycle           | Noncurrent versions expire after 30 days                  | Completed |
+| IAM Security           | Permissions restricted using least privilege              | Completed |
+| Testing and Validation | CloudFormation, AWS CLI and access control tests          | Completed |
+| Documentation          | README, screenshots, architecture diagram and Git history | Completed |
+
+**Deployment Status:** Completed and verified.
+**CloudFormation Stack:** `ATU-Static-Website`
+**AWS Region:** `eu-west-1`
+
+### Part A(b) — Three-Tier Architecture
+
+**Status:** Planned.
+
+The next stage will implement a three-tier architecture consisting of a Web Tier, Application Tier and Database Tier.
+
+The infrastructure will be defined and deployed using AWS CloudFormation.
 
 ### Part A(b) — Three-Tier Architecture
 
