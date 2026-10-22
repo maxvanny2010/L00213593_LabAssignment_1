@@ -842,16 +842,19 @@ deployment permissions.
 ### Iteration 9 — DynamoDB Template Review and Security Checks
 
 **Objective**
+
 Review static-analysis findings for the DynamoDB table and document why additional CloudFormation settings were
 considered.
 
 **How the changes were identified**
+
 After defining the `MessagesTable` resource, I inspected the CloudFormation template using editor/static-analysis
 checks. The checks reported missing `DeletionPolicy`, `UpdateReplacePolicy` and `SSESpecification` properties. These
 findings prompted me to consult the official AWS CloudFormation and DynamoDB documentation rather than assuming that the
 properties were mandatory or that the table was unencrypted.
 
 **Resource lifecycle decisions**
+
 - `DeletionPolicy` controls what happens when the stack is deleted or when the table resource is removed from the
   template [[35]](#ref-35).
 - `UpdateReplacePolicy` controls what happens to the previous physical table if a stack update replaces
@@ -863,6 +866,7 @@ properties were mandatory or that the table was unencrypted.
   `Retain` would be safer than deleting its data automatically.
 
 **Encryption review**
+
 The security check first reported that `SSESpecification` was missing. After I explicitly set `SSEEnabled: false`, it
 reported that its required value was `true`.
 
@@ -877,14 +881,68 @@ the particular static-analysis rule requiring `SSEEnabled: true`. I am documenti
 that all security checks passed.
 
 **Validation and current status**
+
 - The previous CloudFormation template validation succeeded before these latest lifecycle/encryption edits.
 - The static-analysis finding for `SSEEnabled: true` remains unresolved by design while `SSEEnabled: false` is used.
 - The updated template still needs another `aws cloudformation validate-template` check after these edits.
 - The Part A(b) stack and DynamoDB table have not yet been deployed.
 
 **References**
+
 AWS documents the lifecycle attributes, DynamoDB encryption-key behaviour and encryption at rest in
 references [[35]](#ref-35)–[[38]](#ref-38).
+
+### Iteration 10 — Separate S3 Bucket for Lambda Deployment Artifacts
+
+**Objective**
+
+Prepare an independent, private S3 bucket for storing the packaged Java Lambda application before deployment. The Maven
+Shade build produced `target/student-message-board-1.0-SNAPSHOT.jar` (approximately 13.9 MB). No Lambda function or
+artifacts bucket has been deployed in this iteration.
+
+**Why a second S3 bucket?**
+
+Part A(a) already uses a private S3 bucket to store website files (`web/index.html`) served through CloudFront. I chose
+a separate bucket for Lambda deployment artifacts because JAR files are build outputs, not public website content. This
+keeps the two types of objects and their access permissions separate. The website bucket grants CloudFront read access;
+the artifact bucket will instead need permissions for uploading the JAR and allowing Lambda deployment to read it.
+Separation also makes artifact lifecycle management and lab cleanup easier.
+
+**Implementation**
+
+- Added `infrastructure/lambda-artifacts.yaml` as a separate CloudFormation template for the artifact bucket.
+- Reused the security settings already implemented and tested in the Part A(a) S3 bucket: `BlockPublicAccess`,
+  `BucketOwnerEnforced` (ACLs disabled), SSE-S3 (`AES256`), and explicit `DeletionPolicy` / `UpdateReplacePolicy`.
+- Reused `BucketNamePrefix` with `BucketNamespace: account-regional`, changing the prefix from `atu-l00213593-web` to
+  `atu-l00213593-lambda`. This allows AWS to generate an account/Region-scoped bucket name without hardcoding a complete
+  name [[6]](#ref-6) [[39]](#ref-39).
+- Enabled S3 Versioning for previous deployment artifacts and configured a lifecycle rule to expire noncurrent object
+  versions after 30 days, using the same retention approach as the website bucket [[23]](#ref-23) [[24]](#ref-24).
+- Added a CloudFormation output for the generated artifact bucket name.
+
+**Static-analysis finding: S3 server access logging**
+
+The template checker recommended adding `LoggingConfiguration` to the bucket. I reviewed this recommendation but did not
+enable server access logging at this stage. AWS recommends a separate destination bucket for access logs, with the
+appropriate policy granting the logging service permission to deliver records. There is no additional charge solely for
+enabling the feature, but delivered log objects incur S3 storage charges [[40]](#ref-40).
+
+For this small, temporary lab bucket, I chose not to add a logging destination and associated permissions at this stage,
+keeping the setup simple and avoiding extra stored log objects. This is a documented trade-off, **not** a claim that the
+logging check passes or that access logging is unnecessary in production. I can revisit it if stronger auditing is
+required.
+
+**Testing and current status**
+
+- The artifact bucket is currently **defined in YAML only**; deployment and bucket-level verification are pending.
+- The static-analysis recommendation for `LoggingConfiguration` remains outstanding by design.
+- `DeletionPolicy: Delete` will not automatically empty an S3 bucket; stored objects and versions must be removed before
+  the bucket can be deleted.
+- The artifact bucket's policy and IAM deployment permissions will be prepared before uploading the JAR or deploying
+  Lambda.
+
+**Official documentation:** S3 bucket CloudFormation properties [[39]](#ref-39) and server access
+logging [[40]](#ref-40).
 
 ## 6. Design Decisions
 
@@ -1124,4 +1182,14 @@ at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-p
 <a id="ref-38"></a>
 **[38]** Amazon Web Services (n.d.) *DynamoDB encryption at rest usage notes*.
 Available at: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/encryption.usagenotes.html
+(Accessed: 22 October 2026).
+
+<a id="ref-39"></a>
+**[39]** Amazon Web Services (n.d.) *AWS::S3::Bucket — AWS CloudFormation Template Reference*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-s3-bucket.html
+(Accessed: 22 October 2026).
+
+<a id="ref-40"></a>
+**[40]** Amazon Web Services (n.d.) *Enabling Amazon S3 server access logging*.
+Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html
 (Accessed: 22 October 2026).
