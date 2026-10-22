@@ -83,6 +83,27 @@ Resources:
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
 
+  # Allow only this CloudFront distribution to read S3 objects.
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub
+                  - 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+                  - DistributionId: !Ref WebsiteDistribution
+
 Outputs:
   WebsiteBucketName:
     Description: Name of the private S3 bucket

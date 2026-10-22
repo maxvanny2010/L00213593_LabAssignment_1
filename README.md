@@ -398,16 +398,40 @@ The distribution uses the private S3 bucket as its origin and connects to the pr
 **Design Decisions**
 I selected `PriceClass_100` to limit CloudFront delivery locations mainly to North America and Europe and help control
 costs [[18]](#ref-18).
-I configured `redirect-to-https` to redirect HTTP requests to HTTPS. I also selected the AWS managed `CachingOptimized`
-policy to cache static website content.
+I configured `redirect-to-https` to redirect HTTP requests to HTTPS.
 Because OAC is used instead of the older OAI mechanism, `OriginAccessIdentity` is set to an empty string, as described
 in AWS documentation [[19]](#ref-19).
 I selected the AWS managed `CachingOptimized` cache policy to reduce repeated requests to S3. Its policy ID is provided
 in the official AWS documentation [[20]](#ref-20).
 
+#### S3 Bucket Policy for CloudFront
+
+**Implementation**
+Added `AWS::S3::BucketPolicy` to allow CloudFront to read objects from the private S3 bucket.
+
+**Design Decision**
+I decided to keep the S3 bucket private and allow access only through the configured CloudFront distribution.
+The policy grants `s3:GetObject` permission to the CloudFront service. The `AWS:SourceArn` condition restricts access to
+the specific distribution created by this project.
+This follows the AWS recommendation for using Origin Access Control with a private S3 origin [[21]](#ref-21).
+
 **Validation**
-The updated CloudFormation template was checked using `aws cloudformation validate-template`.
-The distribution has not yet been deployed.
+The updated CloudFormation template was successfully checked using `aws cloudformation validate-template`.
+
+The CloudFront distribution and bucket policy have not yet been deployed.
+
+**CloudFront Distribution ARN**
+
+A CloudFront distribution defines how content is delivered from an origin, such as an S3 bucket. AWS automatically
+assigns a unique Distribution ID when the resource is created.
+
+The bucket policy uses `AWS:SourceArn` to restrict `s3:GetObject` access to this specific distribution.
+
+The ARN follows the AWS-defined format `arn:partition:cloudfront::account-id:distribution/distribution-id`.
+CloudFormation uses `!Sub` to insert the AWS partition, account ID and generated Distribution ID automatically.
+
+This avoids hardcoding resource identifiers and ensures that the bucket policy refers to the correct CloudFront
+distribution [[21]](#ref-21).
 
 ## 6. Design Decisions
 
@@ -548,3 +572,9 @@ https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-prope
 Available at: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
 (Accessed: 22 October 2026).
 
+<a id="ref-21"></a>
+**[21]** Amazon Web Services (n.d.)
+*Restrict access to an Amazon S3 origin using Origin Access Control (OAC)*.
+Available at:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html
+(Accessed: 22 October 2026).
