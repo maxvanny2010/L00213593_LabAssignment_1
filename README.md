@@ -389,6 +389,26 @@ OAC allows CloudFront to send authenticated requests to a private S3 bucket usin
 **Validation**
 The CloudFormation template was checked using `aws cloudformation validate-template`.
 
+#### CloudFront Distribution
+
+**Implementation**
+Added `AWS::CloudFront::Distribution` to deliver the static website through HTTPS.
+The distribution uses the private S3 bucket as its origin and connects to the previously configured OAC.
+
+**Design Decisions**
+I selected `PriceClass_100` to limit CloudFront delivery locations mainly to North America and Europe and help control
+costs [[18]](#ref-18).
+I configured `redirect-to-https` to redirect HTTP requests to HTTPS. I also selected the AWS managed `CachingOptimized`
+policy to cache static website content.
+Because OAC is used instead of the older OAI mechanism, `OriginAccessIdentity` is set to an empty string, as described
+in AWS documentation [[19]](#ref-19).
+I selected the AWS managed `CachingOptimized` cache policy to reduce repeated requests to S3. Its policy ID is provided
+in the official AWS documentation [[20]](#ref-20).
+
+**Validation**
+The updated CloudFormation template was checked using `aws cloudformation validate-template`.
+The distribution has not yet been deployed.
+
 ## 6. Design Decisions
 
 Technical decisions will be documented during development.
@@ -508,3 +528,23 @@ Available at: https://docs.aws.amazon.com/cli/latest/reference/s3api/get-bucket-
 Available at:
 https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cloudfront-originaccesscontrol.html
 (Accessed: 22 October 2026).
+
+<a id="ref-18"></a>
+**[18]** Amazon Web Services (n.d.)
+*Choosing the price class for a CloudFront distribution*.
+Available at:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html
+(Accessed: 22 October 2026).
+
+<a id="ref-19"></a>
+**[19]** Amazon Web Services (n.d.)
+*AWS::CloudFront::Distribution S3OriginConfig*.
+Available at:
+https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-cloudfront-distribution-s3originconfig.html
+(Accessed: 22 October 2026).
+
+<a id="ref-20"></a>
+**[20]** Amazon Web Services (n.d.) *Use managed cache policies*.
+Available at: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+(Accessed: 22 October 2026).
+
