@@ -944,6 +944,35 @@ required.
 **Official documentation:** S3 bucket CloudFormation properties [[39]](#ref-39) and server access
 logging [[40]](#ref-40).
 
+#### Deployment and AWS CLI Verification
+
+**Deployment**
+I deployed `infrastructure/lambda-artifacts.yaml` using AWS CloudFormation.
+- Stack: `ATU-Lambda-Artifacts`
+- Region: `eu-west-1`
+- S3 bucket: `atu-l00213593-lambda-897068845214-eu-west-1-an`
+
+**Result:** CloudFormation successfully created the stack.
+
+**Validation**
+
+I used AWS CLI to verify the deployed S3 configuration.
+
+| Check                  | Actual Result                       |
+|------------------------|-------------------------------------|
+| CloudFormation Outputs | Bucket name returned successfully   |
+| S3 Versioning          | `Enabled`                           |
+| S3 Lifecycle           | `DeleteOldLambdaArtifacts`, 30 days |
+| S3 Encryption          | `AES256` (SSE-S3)                   |
+| Block Public Access    | All four settings are `true`        |
+
+The verification confirmed that the S3 bucket is configured for private storage of Java Lambda deployment artifacts.
+
+**Limitation**
+S3 Server Access Logging is not enabled. This decision was made for the small educational project to avoid additional
+log storage and configuration costs.
+The Java Lambda JAR has not yet been uploaded to the bucket.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
