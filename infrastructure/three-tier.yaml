@@ -78,8 +78,34 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MessagesTable
 
+  # Create an HTTP API with Lambda integration using Quick Create
+  MessageHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: ATU-Student-Message-Board-API
+      Description: HTTP API for the ATU Student Message Board
+      ProtocolType: HTTP
+      RouteKey: 'GET /message'
+      Target: !Sub
+        - 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+        - LambdaArn: !GetAtt MessageLambdaFunction.Arn
+
+  # Allow the HTTP API to invoke the Java Lambda function
+  MessageApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MessageLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${MessageHttpApi}/*/GET/message'
+
 Outputs:
 
   MessagesTableName:
     Description: Name of the DynamoDB messages table
     Value: !Ref MessagesTable
+
+  MessageApiEndpoint:
+    Description: HTTPS endpoint for the Student Message Board API
+    Value: !Sub '${MessageHttpApi.ApiEndpoint}/message'
+
