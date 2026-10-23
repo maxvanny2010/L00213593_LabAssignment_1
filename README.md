@@ -1259,6 +1259,7 @@ Expose the API endpoint through CloudFormation Outputs and verify the deployment
 Expose the HTTPS endpoint of the Student Message Board API through CloudFormation Outputs.
 
 **Implementation**
+
 - Added `MessageApiEndpoint` to `infrastructure/three-tier.yaml`.
 - Used the `ApiEndpoint` attribute of `AWS::ApiGatewayV2::Api`.
 - Added `/message` to the generated URL to match the configured route.
@@ -1278,6 +1279,141 @@ The endpoint output is defined but has not yet been deployed or tested.
 
 **Next Step**
 Deploy the HTTP API through CloudFormation and verify the `GET /message` endpoint.
+
+#### Step 4 — HTTP API Deployment and Verification
+
+**Objective**
+Deploy the HTTP API using AWS CloudFormation and verify that HTTPS requests reach the Java Lambda function.
+
+**Deployment**
+I deployed the updated `infrastructure/three-tier.yaml` template using AWS CloudFormation.
+
+- CloudFormation stack: `ATU-Three-Tier`
+- AWS Region: `eu-west-1`
+- API Gateway type: HTTP API
+- Deployment approach: Quick Create
+- HTTP route: `GET /message`
+
+**Result:** CloudFormation deployment completed successfully.
+
+**HTTP Endpoint**
+CloudFormation returned the following endpoint:
+
+https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+
+**Testing**
+I tested the endpoint using:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"message":"Hello from Java Lambda!"}
+```
+
+**Conclusion**
+The HTTP request was successfully processed through Amazon API Gateway and the Java Lambda function.
+The test confirms that the Web/API entry point can communicate with the Application Tier.
+
+**Security Review**
+The `GET /message` route is currently public and does not require authentication. This is acceptable for the initial
+test response, but access control and request throttling should be reviewed before adding operations involving user
+data.
+
+During troubleshooting, IAM permissions for API Gateway were temporarily broadened. These permissions must be reviewed
+and restricted to the required resources after successful deployment.
+
+**Limitation**
+The Lambda function currently returns a static response. DynamoDB read and write operations have not yet been
+implemented or tested.
+
+#### Troubleshooting — API Gateway Deployment Failures
+
+**Problem**
+The initial API Gateway implementation used separate CloudFormation resources:
+
+- `AWS::ApiGatewayV2::Api`
+- `AWS::ApiGatewayV2::Integration`
+- `AWS::ApiGatewayV2::Route`
+- `AWS::ApiGatewayV2::Stage`
+- `AWS::Lambda::Permission`
+
+The CloudFormation deployment repeatedly failed while creating `MessageApiStage`.
+
+The main error was:
+
+```text
+AccessDenied: not authorized to perform:
+apigateway:TagResource
+```
+
+CloudFormation reported `CREATE_FAILED` for the API stage and cancelled the creation of some dependent resources.
+
+During rollback, additional IAM permission errors occurred when CloudFormation attempted to delete resources.
+
+**Investigation**
+I inspected CloudFormation stack events using the AWS CLI to identify the failed resources and permission errors.
+
+I reviewed and updated the deployment IAM policy, including permissions for API Gateway resource management and Lambda
+invocation permissions.
+
+I also tested changes to resource tags and IAM resource restrictions. However, the `apigateway:TagResource` error
+continued.
+
+The investigation did not establish the exact underlying cause of the tagging permission failure.
+
+**Solution**
+Rather than continuing with the original implementation, I decided to simplify the architecture using the CloudFormation
+Quick Create configuration for HTTP APIs [[47]](#ref-47).
+
+I returned the development branch to the last working commit and preserved the previous implementation in a separate
+backup branch:
+
+`backup/08-api-gateway-before-reset`
+
+The new implementation defines the HTTP API, Lambda integration and route using the `AWS::ApiGatewayV2::Api` resource.
+AWS automatically creates the default deployment stage.
+
+This reduces the number of CloudFormation resources that need to be managed separately.
+
+**Verification**
+The new CloudFormation deployment completed successfully.
+
+The API endpoint was tested using:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result:**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"message":"Hello from Java Lambda!"}
+```
+
+**Lessons Learned**
+
+- CloudFormation template validation does not guarantee successful resource deployment.
+- IAM permissions must be considered for resource creation, updates and rollback operations.
+- CloudFormation stack events are useful for identifying deployment failures.
+- Git branches allow unsuccessful implementations to be preserved without affecting the working version.
+- A simpler infrastructure configuration can reduce the number of independently managed resources.
+- Successful deployment must be followed by an actual application test.
+
+**Security Consideration**
+During troubleshooting, API Gateway management permissions were temporarily broadened.
+
+These permissions require further review and should be restricted to the necessary resources. The successful deployment
+does not, by itself, confirm that the deployment IAM policy follows least privilege.
 
 ## 6. Design Decisions
 
