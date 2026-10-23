@@ -1841,6 +1841,45 @@ CloudFormation template validation passed
 Validate the updated CloudFormation template, deploy the refactored Lambda function and verify that the existing GET
 endpoint continues to work.
 
+#### Step 9 — Verify Refactored Java Lambda Deployment
+
+**Objective**
+Verify that the refactored Java Lambda application continues to work after deployment.
+
+**Deployment**
+The updated CloudFormation template was deployed successfully to the existing `ATU-Three-Tier` stack.
+The Java application now uses separate classes for HTTP handling, business logic, DynamoDB access, message modelling,
+API responses and shared constants.
+
+**HTTP Testing**
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"count":0,"messages":[]}
+```
+
+**Validation**
+
+- [x] CloudFormation deployment completed successfully.
+- [x] Existing `GET /message` endpoint returned HTTP 200.
+- [x] JSON response structure remained unchanged.
+- [x] Refactored Lambda handled the HTTP request.
+- [x] CloudWatch execution completion and database logging verification pending.
+
+**Conclusion**
+The refactored Java Lambda application preserved the existing HTTP API behaviour.
+
+**Next Step**
+Configure API Gateway to accept `POST /message` and verify message creation using DynamoDB `PutItem`.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
