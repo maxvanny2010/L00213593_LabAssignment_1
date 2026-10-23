@@ -1415,6 +1415,63 @@ During troubleshooting, API Gateway management permissions were temporarily broa
 These permissions require further review and should be restricted to the necessary resources. The successful deployment
 does not, by itself, confirm that the deployment IAM policy follows least privilege.
 
+#### Step 5 — IAM Security Review After Deployment
+
+**Objective**
+Review and restrict the IAM permissions used during API Gateway deployment.
+
+**Problem**
+During API Gateway troubleshooting, the deployment IAM policy was temporarily configured with `Resource: "*"` for API
+Gateway management operations.
+
+This allowed broader access than required for the Student Message Board project.
+
+**Implementation**
+
+- Reviewed the Lambda resource-based policy using `aws lambda get-policy`.
+- Confirmed that the Lambda invocation permission is granted to `apigateway.amazonaws.com`.
+- Confirmed that `SourceArn` restricts invocation to API `5khdtsh8bb` and the `GET /message` route.
+- Updated the customer-managed IAM policy `ATU-CloudFormation-Lab-Policy`.
+- Replaced unrestricted API Gateway resource access with permissions scoped to the deployed HTTP API.
+- Retained the existing permissions required for other project resources.
+
+**Design Decision**
+I decided to restrict API Gateway management permissions after successfully deploying the HTTP API.
+The policy now references the specific API identifier rather than allowing management of all API Gateway resources.
+This reduces the deployment user's permissions and follows the principle of least privilege [[8]](#ref-8).
+
+**Validation**
+
+After updating the IAM policy, I tested the existing API endpoint:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"message":"Hello from Java Lambda!"}
+```
+
+**Result:** Passed.
+The deployed HTTP API continued to invoke the Java Lambda function successfully after the IAM policy change.
+
+**Limitations**
+The updated IAM policy has not been tested against a new CloudFormation deployment.
+
+Some API Gateway operations, including the creation of replacement APIs or resource tagging, may require additional
+permissions.
+
+The HTTP endpoint remains publicly accessible without authentication and currently returns only a static test response.
+
+**Conclusion**
+The HTTP API deployment and invocation tests were successful. Deployment permissions were subsequently reduced, while
+the existing public endpoint continued to operate correctly.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
