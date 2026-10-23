@@ -1077,6 +1077,7 @@ Java source was located under `app/src/main/java`, outside the default `src/main
 project. A successful packaging command therefore did not prove that the Lambda handler was included.
 
 **Implementation**
+
 - Refactored the root `pom.xml` to use `pom` packaging and declare the `lambda-app` module. Maven supports this
   parent/child project structure through its reactor and module configuration [[43]](#ref-43).
 - Created `lambda-app/pom.xml` with the AWS Lambda Java Core dependency, AWS SDK for DynamoDB and Maven Shade Plugin.
@@ -1175,6 +1176,49 @@ EC2 application (`ec2-app`) are planned for later iterations. This avoids moving
 **Limitations:** The handler currently returns a static message. API Gateway connectivity and DynamoDB read/write
 operations have not yet been implemented or tested. The IAM policy is managed separately in the AWS Console, not by this
 CloudFormation stack.
+
+### Iteration 14 — HTTP API Integration Using Quick Create
+
+#### Step 1 — HTTP API Definition
+
+**Objective**
+Define an HTTP API to expose the existing Java Lambda application through HTTPS.
+
+**Implementation**
+- Added `MessageHttpApi` to `infrastructure/three-tier.yaml`.
+- Used the `AWS::ApiGatewayV2::Api` resource.
+- Configured `ProtocolType: HTTP`.
+- Defined the `GET /message` route.
+- Connected the API to the existing Java Lambda function using its ARN.
+- Selected the AWS Quick Create approach.
+
+**Design Decision**
+I selected Quick Create instead of defining separate API Gateway Integration, Route and Stage resources.
+
+AWS Quick Create automatically configures the HTTP API, Lambda proxy integration, route and `$default` stage with
+automatic deployment [[47]](#ref-47).
+
+This reduces the number of CloudFormation resources that must be managed separately.
+
+**Previous Deployment Issues**
+The earlier implementation used separate CloudFormation resources for the API, integration, route and stage.
+
+CloudFormation repeatedly failed to create `MessageApiStage` because the deployment IAM user was denied the
+`apigateway:TagResource` operation.
+
+The failed stack updates were rolled back. I then returned the Git branch to its previous working state and selected
+Quick Create as an alternative implementation.
+
+Quick Create still requires appropriate IAM permissions and does not guarantee that the tagging problem will disappear.
+
+**Validation**
+CloudFormation template validate.
+
+**Current Status**
+The HTTP API is defined in the template but has not yet been deployed or tested.
+
+**Next Step**
+Configure permission for API Gateway to invoke the Java Lambda function.
 
 ## 6. Design Decisions
 
@@ -1455,4 +1499,10 @@ Available at: https://docs.aws.amazon.com/service-authorization/latest/reference
 <a id="ref-46"></a>
 **[46]** Amazon Web Services (n.d.) *invoke — AWS CLI Command Reference*.
 Available at: https://docs.aws.amazon.com/cli/latest/reference/lambda/invoke.html
+(Accessed: 23 October 2026).
+
+
+<a id="ref-47"></a>
+**[47]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Api*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-api.html
 (Accessed: 23 October 2026).

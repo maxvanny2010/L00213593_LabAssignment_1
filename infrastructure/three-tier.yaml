@@ -78,6 +78,17 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MessagesTable
 
+  # Create an HTTP API with Lambda integration using Quick Create
+  MessageHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: ATU-Student-Message-Board-API
+      Description: HTTP API for the ATU Student Message Board
+      ProtocolType: HTTP
+      RouteKey: 'GET /message'
+      Target: !GetAtt MessageLambdaFunction.Arn
+
+
 Outputs:
 
   MessagesTableName:
