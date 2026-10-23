@@ -57,7 +57,8 @@ The static website infrastructure has been deployed and verified using AWS Cloud
 
 ### Part A(b) — Three-Tier Architecture
 
-**Status:** Planned.
+**Status:** In progress. The Java Lambda and DynamoDB infrastructure are deployed; direct Lambda invocation has passed.
+API Gateway and database operations remain pending.
 
 The next stage will implement a three-tier architecture consisting of a Web Tier, Application Tier and Database Tier.
 
@@ -1058,6 +1059,123 @@ CloudFormation returned `CAPABILITY_IAM` because the template contains an IAM Ro
 The Java Lambda function has not yet been deployed or tested in AWS. DynamoDB application logic and API Gateway
 integration are still pending.
 
+### Iteration 13 — Maven Multi-Module Refactoring and Java Lambda Runtime Verification
+
+**Objective**
+Resolve the deployed Java Lambda `ClassNotFoundException`, introduce a modular Maven project structure and verify the
+updated function in AWS.
+
+**Problem and root cause**
+The initial Lambda invocation returned `FunctionError: Unhandled` with:
+
+```text
+ClassNotFoundException: ie.atu.lab.MessageHandler
+```
+
+The earlier Maven build had reported `BUILD SUCCESS`, but the deployment JAR did not contain `MessageHandler.class`. The
+Java source was located under `app/src/main/java`, outside the default `src/main/java` directory used by the root Maven
+project. A successful packaging command therefore did not prove that the Lambda handler was included.
+
+**Implementation**
+- Refactored the root `pom.xml` to use `pom` packaging and declare the `lambda-app` module. Maven supports this
+  parent/child project structure through its reactor and module configuration [[43]](#ref-43).
+- Created `lambda-app/pom.xml` with the AWS Lambda Java Core dependency, AWS SDK for DynamoDB and Maven Shade Plugin.
+  Packaging dependencies in a JAR follows AWS guidance for Java Lambda deployments [[28]](#ref-28).
+- Moved `MessageHandler.java` to `lambda-app/src/main/java/ie/atu/lab/MessageHandler.java` without changing the
+  handler's Java package.
+- Rebuilt the project using `mvn clean package` and checked the generated JAR with:
+
+```powershell
+jar tf lambda-app/target/lambda-app-1.0-SNAPSHOT.jar | Select-String "MessageHandler"
+```
+
+**Actual result:** `ie/atu/lab/MessageHandler.class` was present in the JAR.
+
+**Deployment and version control**
+Uploaded the rebuilt JAR to the existing private artifact bucket while retaining the established S3 object key:
+
+```powershell
+aws s3 cp `
+  lambda-app/target/lambda-app-1.0-SNAPSHOT.jar `
+  s3://atu-l00213593-lambda-897068845214-eu-west-1-an/lambda/student-message-board-1.0-SNAPSHOT.jar `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+Because the artifact bucket has S3 Versioning enabled, the new upload received a new object version. I added
+`S3ObjectVersion` to the Lambda `Code` property in `infrastructure/three-tier.yaml` to identify the precise deployment
+artifact. CloudFormation supports this property for versioned S3 objects [[44]](#ref-44).
+
+```yaml
+Code:
+  S3Bucket: atu-l00213593-lambda-897068845214-eu-west-1-an
+  S3Key: lambda/student-message-board-1.0-SNAPSHOT.jar
+  S3ObjectVersion: 3DfFewxM3tosowV.2CXsfERBfC3Xt38c
+```
+
+This avoids relying on an overwritten S3 key alone to update an existing Lambda function.
+
+**IAM permission troubleshooting**
+
+The first CloudFormation update failed for `MessageLambdaFunction` because the deploying IAM user `atu-devops-lab` was
+not allowed to perform `s3:GetObjectVersion`. CloudFormation reported `UPDATE_FAILED`, followed by
+`UPDATE_ROLLBACK_COMPLETE`.
+
+I added `s3:GetObjectVersion` to the existing `UploadLambdaArtifact` statement in `ATU-CloudFormation-Lab-Policy`. Its
+resource remained restricted to the single Lambda JAR object, rather than allowing access to every object in the bucket.
+AWS distinguishes object-version read permissions from ordinary object reads [[45]](#ref-45).
+
+After saving the updated IAM policy, I repeated the CloudFormation deployment:
+
+```powershell
+aws cloudformation deploy `
+  --template-file infrastructure/three-tier.yaml `
+  --stack-name ATU-Three-Tier `
+  --capabilities CAPABILITY_IAM `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Actual result:** `Successfully created/updated stack - ATU-Three-Tier`.
+
+**Runtime verification**
+I invoked the updated function directly through the AWS CLI [[46]](#ref-46):
+
+```powershell
+aws lambda invoke `
+  --function-name ATU-Three-Tier-MessageLambdaFunction-gAofVDXQaSuj `
+  --payload '{}' `
+  --cli-binary-format raw-in-base64-out `
+  --region eu-west-1 `
+  --profile atu-lab `
+  lambda-response.json
+
+Get-Content lambda-response.json
+```
+
+| Check                           | Actual result                           |
+|---------------------------------|-----------------------------------------|
+| Maven multi-module build        | `BUILD SUCCESS`                         |
+| Handler class in deployment JAR | `ie/atu/lab/MessageHandler.class` found |
+| CloudFormation redeployment     | Successful                              |
+| Lambda invoke API status        | `StatusCode: 200`                       |
+| Lambda `FunctionError`          | Not present                             |
+| Handler response status         | `200`                                   |
+| Response body                   | `{"message":"Hello from Java Lambda!"}` |
+
+**Result: Passed.** The deployed Java Lambda handler executed successfully and returned the expected JSON response. The
+test verifies Lambda execution, not yet the full three-tier application.
+
+**Design decision and next steps**
+
+I chose a Maven Multi-Module structure because this project will support both a Java Lambda implementation and a Spring
+Boot application running on EC2. The `lambda-app` module is implemented now; shared application logic (`common`) and the
+EC2 application (`ec2-app`) are planned for later iterations. This avoids moving the same source files twice.
+
+**Limitations:** The handler currently returns a static message. API Gateway connectivity and DynamoDB read/write
+operations have not yet been implemented or tested. The IAM policy is managed separately in the AWS Console, not by this
+CloudFormation stack.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -1313,9 +1431,28 @@ Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-serve
 Available at: https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
 (Accessed: 22 October 2026).
 
-
 <a id="ref-42"></a>
 **[42]** Amazon Web Services (n.d.) *Configure a Lambda function to access resources in a VPC*.
 Available at: https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html
 (Accessed: 23 October 2026).
 
+<a id="ref-43"></a>
+**[43]** Apache Software Foundation (n.d.) *Guide to Working with Multiple Modules*.
+Available at: https://maven.apache.org/guides/mini/guide-multiple-modules.html
+(Accessed: 23 October 2026).
+
+<a id="ref-44"></a>
+**[44]** Amazon Web Services (n.d.) *AWS::Lambda::Function Code — AWS CloudFormation Template Reference*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-lambda-function-code.html
+(Accessed: 23 October 2026).
+
+<a id="ref-45"></a>
+**[45]** Amazon Web Services (n.d.) *Actions, resources, and condition keys for Amazon S3*.
+Available at: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazons3.html
+(Accessed: 23 October 2026).
+
+<a id="ref-46"></a>
+**[46]** Amazon Web Services (n.d.) *invoke — AWS CLI Command Reference*.
+Available at: https://docs.aws.amazon.com/cli/latest/reference/lambda/invoke.html
+(Accessed: 23 October 2026).

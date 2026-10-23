@@ -1,4 +1,4 @@
-package java.ie.atu.lab;
+package ie.atu.lab;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
