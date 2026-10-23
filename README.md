@@ -1661,7 +1661,8 @@ Prepare the updated Java Lambda application for deployment with DynamoDB JSON re
 - S3 object version: `Foe4RvfA9y16BqMkcsP6zpSsDyKqiFU1`
 
 **Design Decision**
-I used the existing versioned S3 artifact bucket to deploy the updated Java application without changing the Lambda function configuration or its API Gateway integration.
+I used the existing versioned S3 artifact bucket to deploy the updated Java application without changing the Lambda
+function configuration or its API Gateway integration.
 The explicit S3 object version allows CloudFormation to identify the exact deployment package.
 
 **Validation**
@@ -1674,7 +1675,8 @@ Validate the CloudFormation template and deploy the updated Java Lambda function
 #### Step 6 — Deploy and Verify DynamoDB JSON Response
 
 **Objective**
-Deploy the updated Java Lambda function and verify that messages retrieved from DynamoDB are returned as JSON through API Gateway.
+Deploy the updated Java Lambda function and verify that messages retrieved from DynamoDB are returned as JSON through
+API Gateway.
 
 **Deployment**
 I deployed the updated `infrastructure/three-tier.yaml` template using AWS CloudFormation.
@@ -1742,13 +1744,72 @@ The added SLF4J logging implementation resolved the previously observed warning.
 - [x] Previous SLF4J warning was absent.
 
 **Limitations**
-The DynamoDB table currently returns no messages, so the mapping of stored message attributes has not yet been tested with actual records.
+The DynamoDB table currently returns no messages, so the mapping of stored message attributes has not yet been tested
+with actual records.
 The API supports reading messages but does not yet provide an HTTP endpoint for creating messages.
 
 **Next Step**
 Implement message creation using DynamoDB `PutItem` and expose a `POST /message` endpoint through API Gateway.
 
+#### Step 7 — Implement Message Creation and Refactor Java Lambda
 
+**Objective**
+Extend the Java Lambda application to support message creation in DynamoDB and improve code maintainability by
+separating responsibilities into individual classes.
+
+**Implementation**
+
+- Implemented HTTP method handling for `GET` and `POST`.
+- Preserved the existing DynamoDB read functionality.
+- Added message creation using DynamoDB `PutItem`.
+- Added input validation for message content.
+- Limited message length to 500 characters.
+- Generated unique message identifiers using UUID.
+- Added UTC timestamps using `Instant.now()`.
+- Added JSON responses with appropriate HTTP status codes.
+- Refactored the Java application into six separate classes.
+
+**Java Class Structure**
+
+| Class                    | Responsibility                                                                                             |
+|--------------------------|------------------------------------------------------------------------------------------------------------|
+| `MessageHandler.java`    | Handles incoming HTTP requests and routes GET and POST operations.                                         |
+| `MessageService.java`    | Implements message validation and business logic.                                                          |
+| `MessageRepository.java` | Performs DynamoDB read and write operations.                                                               |
+| `Message.java`           | Represents message data.                                                                                   |
+| `ApiResponse.java`       | Builds HTTP responses and serializes data to JSON.                                                         |
+| `AppConstants.java`      | Stores HTTP methods, status codes, JSON fields, DynamoDB attributes, error messages and logging constants. |
+
+**Design Decisions**
+I decided to implement message creation and refactor the Java Lambda application in the same development stage.
+
+The original `MessageHandler.java` contained HTTP handling, business logic, input validation and DynamoDB operations in
+one class.
+
+I separated these responsibilities to follow the Single Responsibility Principle and make the application easier to
+understand, test and maintain.
+
+I also extracted reusable string literals and HTTP status codes into `AppConstants.java` to reduce duplication and avoid
+hardcoded values throughout the application.
+
+The existing Maven multi-module structure was preserved. The refactoring also prepares the application for possible code
+reuse with the planned Spring Boot application on EC2.
+
+**Validation**
+The updated application is ready for Maven compilation and packaging.
+
+```powershell
+mvn clean package
+```
+
+The refactored Java Lambda has not yet been deployed or tested in AWS.
+The existing `GET /message` endpoint continues to use the previously deployed Lambda version.
+The new `POST /message` route has not yet been configured in API Gateway.
+
+**Next Step**
+Build and package the refactored Java Lambda application, upload the new JAR version to Amazon S3 and deploy it through
+CloudFormation.
+Verify that the existing GET endpoint still works before enabling POST requests.
 
 ## 6. Design Decisions
 

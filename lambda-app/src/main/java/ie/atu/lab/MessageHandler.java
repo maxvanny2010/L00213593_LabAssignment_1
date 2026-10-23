@@ -1,78 +1,89 @@
-
 package ie.atu.lab;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
-import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 import java.util.List;
 import java.util.Map;
 
 public class MessageHandler implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
-    private static final DynamoDbClient dynamoDb = DynamoDbClient.create();
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final DynamoDbClient DYNAMO_DB = DynamoDbClient.create();
+    private static final MessageService SERVICE = new MessageService(
+            new MessageRepository(DYNAMO_DB, System.getenv(AppConstants.Fields.TABLE_NAME))
+    );
 
     @Override
     public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
-
-        context.getLogger().log("Message Board request received");
-
-        String tableName = System.getenv("TABLE_NAME");
-
-        if (tableName == null || tableName.isBlank()) {
-            throw new IllegalStateException("TABLE_NAME environment variable is not configured");
-        }
-
-        ScanRequest request = ScanRequest.builder()
-                .tableName(tableName)
-                .limit(20)
-                .build();
-
-        ScanResponse response = dynamoDb.scan(request);
-
-        context.getLogger().log(
-                "DynamoDB scan completed. Items returned: " + response.count()
-        );
-
-        List<Map<String, String>> messages = response.items().stream()
-                .map(this::toMessage)
-                .toList();
+        context.getLogger().log(AppConstants.Logs.REQUEST_RECEIVED);
 
         try {
-            String body = objectMapper.writeValueAsString(
-                    Map.of(
-                            "messages", messages,
-                            "count", messages.size()
-                    )
-            );
-
-            return Map.of(
-                    "statusCode", 200,
-                    "headers", Map.of("Content-Type", "application/json"),
-                    "body", body
-            );
-
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialize messages", e);
+            String method = requestMethod(event);
+            return switch (method) {
+                case AppConstants.Http.GET -> getMessages(context);
+                case AppConstants.Http.POST -> createMessage(event, context);
+                default -> ApiResponse.of(AppConstants.Http.METHOD_NOT_ALLOWED, Map.of(AppConstants.Fields.ERROR, AppConstants.Errors.METHOD_NOT_ALLOWED));
+            };
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.of(AppConstants.Http.BAD_REQUEST, Map.of(AppConstants.Fields.ERROR, e.getMessage()));
+        } catch (Exception e) {
+            context.getLogger().log(AppConstants.Logs.REQUEST_FAILED + e);
+            return ApiResponse.of(AppConstants.Http.INTERNAL_SERVER_ERROR, Map.of(AppConstants.Fields.ERROR, AppConstants.Errors.INTERNAL_SERVER_ERROR));
         }
     }
 
-    private Map<String, String> toMessage(Map<String, AttributeValue> item) {
-        return Map.of(
-                "id", stringValue(item, "id"),
-                "message", stringValue(item, "message"),
-                "createdAt", stringValue(item, "createdAt")
-        );
+    private Map<String, Object> getMessages(Context context) {
+        List<Message> messages = SERVICE.getMessages();
+        context.getLogger().log(AppConstants.Logs.SCAN_COMPLETE + messages.size());
+        return ApiResponse.of(AppConstants.Http.OK, Map.of(AppConstants.Fields.MESSAGES, messages, AppConstants.Fields.COUNT, messages.size()));
     }
 
-    private String stringValue(Map<String, AttributeValue> item, String name) {
-        AttributeValue value = item.get(name);
-        return value != null && value.s() != null ? value.s() : "";
+    private Map<String, Object> createMessage(Map<String, Object> event, Context context) {
+        if (Boolean.TRUE.equals(event.get(AppConstants.Fields.IS_BASE64_ENCODED))) {
+            throw new IllegalArgumentException(AppConstants.Errors.BASE64_NOT_SUPPORTED);
+        }
+
+        Object rawBody = event.get(AppConstants.Fields.BODY);
+        if (!(rawBody instanceof String body) || body.isBlank()) {
+            throw new IllegalArgumentException(AppConstants.Errors.BODY_REQUIRED);
+        }
+
+        JsonNode json;
+        try {
+            json = JSON.readTree(body);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException(AppConstants.Errors.INVALID_JSON);
+        }
+
+        if (json == null || !json.isObject()) {
+            throw new IllegalArgumentException(AppConstants.Errors.JSON_OBJECT_REQUIRED);
+        }
+        JsonNode messageNode = json.get(AppConstants.Fields.MESSAGE);
+        if (messageNode == null || !messageNode.isTextual()) {
+            throw new IllegalArgumentException(AppConstants.Errors.MESSAGE_MUST_BE_STRING);
+        }
+
+        Message message = SERVICE.createMessage(messageNode.asText());
+        context.getLogger().log(AppConstants.Logs.MESSAGE_SAVED);
+        return ApiResponse.of(AppConstants.Http.CREATED, message);
+    }
+
+    private String requestMethod(Map<String, Object> event) {
+        if (event == null) {
+            return "";
+        }
+        Object contextValue = event.get(AppConstants.Fields.REQUEST_CONTEXT);
+        if (contextValue instanceof Map<?, ?> requestContext) {
+            Object httpValue = requestContext.get(AppConstants.Fields.HTTP);
+            if (httpValue instanceof Map<?, ?> http && http.get(AppConstants.Fields.METHOD) instanceof String method) {
+                return method;
+            }
+        }
+        return "";
     }
 }
