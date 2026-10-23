@@ -2,7 +2,6 @@
 
 [![Launch AWS Cloud Website](https://img.shields.io/badge/AWS_CLOUD-LAUNCH_WEBSITE-FF9900?style=for-the-badge&labelColor=232F3E&logo=amazonaws&logoColor=white)](https://d2caxeghfi5itf.cloudfront.net/)
 
-
 **Atlantic Technological University (ATU)**
 
 **Programme:** Postgraduate Diploma in Computing in DevOps
@@ -58,7 +57,8 @@ The static website infrastructure has been deployed and verified using AWS Cloud
 
 ### Part A(b) — Three-Tier Architecture
 
-**Status:** Planned.
+**Status:** In progress. The Java Lambda and DynamoDB infrastructure are deployed; direct Lambda invocation has passed.
+API Gateway and database operations remain pending.
 
 The next stage will implement a three-tier architecture consisting of a Web Tier, Application Tier and Database Tier.
 
@@ -736,6 +736,446 @@ I repeated the CloudFormation deployment successfully.
 
 This approach follows the principle of least privilege [[8]](#ref-8).
 
+### Iteration 6 — Three-Tier Architecture: Java Lambda Setup
+
+**Objective**
+
+Prepare a Java application for the Application Tier of Part A(b).
+
+**Implementation**
+
+- Created the Maven project with `pom.xml` in the repository root and the handler at
+  `src/main/java/ie/atu/lab/MessageHandler.java`.
+- Configured the Maven Compiler Plugin to compile the application using Java 21, a runtime supported by AWS
+  Lambda [[25]](#ref-25).
+- Added `com.amazonaws:aws-lambda-java-core` for the `RequestHandler` interface and Lambda `Context`
+  object [[26]](#ref-26).
+- Added the AWS SDK for Java 2.x `software.amazon.awssdk:dynamodb` module for future database
+  operations [[27]](#ref-27).
+- Imported the AWS SDK BOM under Maven `dependencyManagement` to manage compatible SDK module versions without declaring
+  a separate version for DynamoDB [[27]](#ref-27).
+- Configured Maven Shade Plugin to package the Java code and dependencies into a single JAR for Lambda
+  deployment [[28]](#ref-28) [[29]](#ref-29).
+- Implemented a basic `MessageHandler` returning a JSON response. The `RequestHandler` interface, `handleRequest` method
+  and `Context` logging API follow the AWS Lambda Java handler documentation [[26]](#ref-26).
+
+**Design Decision**
+
+I selected Java 21 and Maven for the Application Tier. I decided to use a simple Java Lambda handler instead of Spring
+Boot to keep the application small and avoid unnecessary dependencies.
+
+The AWS SDK BOM manages the versions of AWS SDK modules, while `aws-lambda-java-core` is declared separately because it
+does not belong to the `software.amazon.awssdk` BOM [[27]](#ref-27).
+
+Maven Shade Plugin creates a deployment JAR containing the application and its
+dependencies [[28]](#ref-28) [[29]](#ref-29).
+
+**Validation**
+
+The Maven project was successfully built from the repository root using `mvn clean package`.
+
+**Result:** `BUILD SUCCESS`. Maven Shade Plugin reported overlapping `META-INF` resources during packaging; these
+warnings did not prevent the build.
+
+**Limitation**
+
+The Lambda function has not yet been deployed to AWS. API Gateway and DynamoDB integration will be implemented in the
+next iterations.
+
+### Iteration 7 — DynamoDB Database Tier
+
+**Objective**
+Define a DynamoDB table for storing messages in the three-tier application.
+
+**Implementation**
+
+- Added the `MessagesTable` resource to `infrastructure/three-tier.yaml`.
+- Configured the `id` attribute as a String partition key.
+- Selected `PAY_PER_REQUEST` billing mode.
+- Added resource tags and a CloudFormation output for the table name.
+
+**Design Decision**
+I selected Amazon DynamoDB because it is a managed NoSQL database and does not require database server administration.
+The `PAY_PER_REQUEST` billing mode was selected because the application is small and the number of requests is expected
+to be low.
+The table name is generated using `!Sub` and the `${AWS::StackName}` pseudo parameter instead of hardcoding the stack
+name [[30]](#ref-30) [[31]](#ref-31).
+The table is defined using the `AWS::DynamoDB::Table` resource [[32]](#ref-32).
+
+**Validation**
+The CloudFormation template was successfully validated using `aws cloudformation validate-template`.
+
+**Result:** Template validation passed.
+
+**Limitation**
+The DynamoDB table has not yet been deployed. The Java Lambda integration will be implemented in a later iteration.
+
+### Iteration 8 — Lambda Execution Role
+
+**Objective**
+Define an IAM execution role for the Java Lambda function.
+
+**Implementation**
+
+- Added `MessageLambdaRole` to `infrastructure/three-tier.yaml`.
+- Configured a trust policy allowing AWS Lambda to assume the role.
+- Attached the AWS-managed `AWSLambdaBasicExecutionRole` policy for CloudWatch logging.
+- Added permissions for `dynamodb:PutItem`, `dynamodb:GetItem` and `dynamodb:Scan`.
+- Restricted DynamoDB access to the `MessagesTable` ARN using `!GetAtt`.
+
+**Design Decision**
+I decided to create a separate execution role for the Java Lambda function instead of using the IAM user that deploys
+the infrastructure.
+The role follows the principle of least privilege by granting access only to the required DynamoDB operations and the
+project table [[33]](#ref-33) [[34]](#ref-34).
+
+**Validation**
+The CloudFormation template was successfully validated using `aws cloudformation validate-template`.
+CloudFormation returned `CAPABILITY_IAM`, confirming that IAM resource creation must be explicitly acknowledged during
+deployment.
+
+**Result:** Template validation passed.
+
+**Limitation**
+The IAM role has not yet been deployed. The CloudFormation stack will require `CAPABILITY_IAM` and appropriate
+deployment permissions.
+
+### Iteration 9 — DynamoDB Template Review and Security Checks
+
+**Objective**
+
+Review static-analysis findings for the DynamoDB table and document why additional CloudFormation settings were
+considered.
+
+**How the changes were identified**
+
+After defining the `MessagesTable` resource, I inspected the CloudFormation template using editor/static-analysis
+checks. The checks reported missing `DeletionPolicy`, `UpdateReplacePolicy` and `SSESpecification` properties. These
+findings prompted me to consult the official AWS CloudFormation and DynamoDB documentation rather than assuming that the
+properties were mandatory or that the table was unencrypted.
+
+**Resource lifecycle decisions**
+
+- `DeletionPolicy` controls what happens when the stack is deleted or when the table resource is removed from the
+  template [[35]](#ref-35).
+- `UpdateReplacePolicy` controls what happens to the previous physical table if a stack update replaces
+  it [[36]](#ref-36).
+- For this temporary lab table, I chose to explicitly specify `Delete` for both properties to make the cleanup behaviour
+  clear and avoid retaining unused lab resources. This decision accepts the risk of losing test messages during stack
+  deletion or resource replacement.
+- A production database containing important information would require a different data-retention and recovery decision;
+  `Retain` would be safer than deleting its data automatically.
+
+**Encryption review**
+
+The security check first reported that `SSESpecification` was missing. After I explicitly set `SSEEnabled: false`, it
+reported that its required value was `true`.
+
+I checked the AWS documentation and found that DynamoDB encrypts all table data at rest by default. For CloudFormation,
+`SSEEnabled: false` or omitting `SSESpecification` uses an AWS owned key, whereas `SSEEnabled: true` selects AWS KMS
+encryption using an AWS managed key, which has different key-management characteristics and may have different cost
+implications [[37]](#ref-37) [[38]](#ref-38).
+
+For this small educational project, I selected the AWS owned key to keep the lab configuration simple and avoid choosing
+a different key-management model without a requirement. This keeps encryption at rest enabled, but **does not satisfy**
+the particular static-analysis rule requiring `SSEEnabled: true`. I am documenting that distinction rather than claiming
+that all security checks passed.
+
+**Validation and current status**
+
+- The previous CloudFormation template validation succeeded before these latest lifecycle/encryption edits.
+- The static-analysis finding for `SSEEnabled: true` remains unresolved by design while `SSEEnabled: false` is used.
+- The updated template still needs another `aws cloudformation validate-template` check after these edits.
+- The Part A(b) stack and DynamoDB table have not yet been deployed.
+
+**References**
+
+AWS documents the lifecycle attributes, DynamoDB encryption-key behaviour and encryption at rest in
+references [[35]](#ref-35)–[[38]](#ref-38).
+
+### Iteration 10 — Separate S3 Bucket for Lambda Deployment Artifacts
+
+**Objective**
+
+Prepare an independent, private S3 bucket for storing the packaged Java Lambda application before deployment. The Maven
+Shade build produced `target/student-message-board-1.0-SNAPSHOT.jar` (approximately 13.9 MB). No Lambda function or
+artifacts bucket has been deployed in this iteration.
+
+**Why a second S3 bucket?**
+
+Part A(a) already uses a private S3 bucket to store website files (`web/index.html`) served through CloudFront. I chose
+a separate bucket for Lambda deployment artifacts because JAR files are build outputs, not public website content. This
+keeps the two types of objects and their access permissions separate. The website bucket grants CloudFront read access;
+the artifact bucket will instead need permissions for uploading the JAR and allowing Lambda deployment to read it.
+Separation also makes artifact lifecycle management and lab cleanup easier.
+
+**Implementation**
+
+- Added `infrastructure/lambda-artifacts.yaml` as a separate CloudFormation template for the artifact bucket.
+- Reused the security settings already implemented and tested in the Part A(a) S3 bucket: `BlockPublicAccess`,
+  `BucketOwnerEnforced` (ACLs disabled), SSE-S3 (`AES256`), and explicit `DeletionPolicy` / `UpdateReplacePolicy`.
+- Reused `BucketNamePrefix` with `BucketNamespace: account-regional`, changing the prefix from `atu-l00213593-web` to
+  `atu-l00213593-lambda`. This allows AWS to generate an account/Region-scoped bucket name without hardcoding a complete
+  name [[6]](#ref-6) [[39]](#ref-39).
+- Enabled S3 Versioning for previous deployment artifacts and configured a lifecycle rule to expire noncurrent object
+  versions after 30 days, using the same retention approach as the website bucket [[23]](#ref-23) [[24]](#ref-24).
+- Added a CloudFormation output for the generated artifact bucket name.
+
+**Static-analysis finding: S3 server access logging**
+
+The template checker recommended adding `LoggingConfiguration` to the bucket. I reviewed this recommendation but did not
+enable server access logging at this stage. AWS recommends a separate destination bucket for access logs, with the
+appropriate policy granting the logging service permission to deliver records. There is no additional charge solely for
+enabling the feature, but delivered log objects incur S3 storage charges [[40]](#ref-40).
+
+For this small, temporary lab bucket, I chose not to add a logging destination and associated permissions at this stage,
+keeping the setup simple and avoiding extra stored log objects. This is a documented trade-off, **not** a claim that the
+logging check passes or that access logging is unnecessary in production. I can revisit it if stronger auditing is
+required.
+
+**Testing and current status**
+
+- The artifact bucket is currently **defined in YAML only**; deployment and bucket-level verification are pending.
+- The static-analysis recommendation for `LoggingConfiguration` remains outstanding by design.
+- `DeletionPolicy: Delete` will not automatically empty an S3 bucket; stored objects and versions must be removed before
+  the bucket can be deleted.
+- The artifact bucket's policy and IAM deployment permissions will be prepared before uploading the JAR or deploying
+  Lambda.
+
+**Official documentation:** S3 bucket CloudFormation properties [[39]](#ref-39) and server access
+logging [[40]](#ref-40).
+
+#### Deployment and AWS CLI Verification
+
+**Deployment**
+I deployed `infrastructure/lambda-artifacts.yaml` using AWS CloudFormation.
+
+- Stack: `ATU-Lambda-Artifacts`
+- Region: `eu-west-1`
+- S3 bucket: `atu-l00213593-lambda-897068845214-eu-west-1-an`
+
+**Result:** CloudFormation successfully created the stack.
+
+**Validation**
+
+I used AWS CLI to verify the deployed S3 configuration.
+
+| Check                  | Actual Result                       |
+|------------------------|-------------------------------------|
+| CloudFormation Outputs | Bucket name returned successfully   |
+| S3 Versioning          | `Enabled`                           |
+| S3 Lifecycle           | `DeleteOldLambdaArtifacts`, 30 days |
+| S3 Encryption          | `AES256` (SSE-S3)                   |
+| Block Public Access    | All four settings are `true`        |
+
+The verification confirmed that the S3 bucket is configured for private storage of Java Lambda deployment artifacts.
+
+**Limitation**
+S3 Server Access Logging is not enabled. This decision was made for the small educational project to avoid additional
+log storage and configuration costs.
+The Java Lambda JAR has not yet been uploaded to the bucket.
+
+### Iteration 11 — Java Lambda Artifact Upload
+
+**Objective**
+Upload the packaged Java application to Amazon S3 and verify the deployment artifact.
+
+**Implementation**
+
+- Used the JAR generated by Maven Shade Plugin.
+- Uploaded `student-message-board-1.0-SNAPSHOT.jar` to the private Lambda artifacts bucket.
+- Stored the JAR under the `lambda/` prefix.
+- Extended `ATU-CloudFormation-Lab-Policy` with object-level permissions.
+
+**IAM Permission Troubleshooting**
+The upload succeeded using `s3:PutObject`.
+However, the first attempt to verify the file using `aws s3api head-object` returned `403 Forbidden`.
+I investigated the required permissions and added `s3:GetObject` for the specific JAR object.
+The second verification succeeded.
+
+This confirmed that permission to upload an object does not automatically grant permission to read its
+metadata [[41]](#ref-41).
+
+**Validation**
+
+The AWS CLI `head-object` command confirmed:
+
+| Property             | Actual Result                    |
+|----------------------|----------------------------------|
+| ContentLength        | 13,918,586 bytes                 |
+| ServerSideEncryption | AES256                           |
+| VersionId            | zzCr383BfQdKrPl.OhqyDkUwCaEbvEFX |
+| ContentType          | binary/octet-stream              |
+
+**Result:** Passed.
+
+**Limitation**
+
+The JAR is stored in S3, but the Java Lambda function has not yet been deployed.
+
+### Iteration 12 — Java Lambda Function Definition
+
+**Objective**
+
+Define the Java Lambda function in CloudFormation using the deployment artifact stored in Amazon S3.
+
+**Implementation**
+
+- Added `MessageLambdaFunction` to `infrastructure/three-tier.yaml`.
+- Configured the Java 21 runtime and `MessageHandler`.
+- Referenced the JAR previously uploaded to the private Lambda artifacts S3 bucket.
+- Connected the function to `MessageLambdaRole`.
+- Configured 512 MB of memory and a 15-second timeout.
+- Passed the DynamoDB table name using the `TABLE_NAME` environment variable.
+
+**Design Decision**
+I reused the existing S3 deployment artifact instead of embedding application code into the CloudFormation template.
+The Lambda function uses the execution role defined in Iteration 8.
+The application does not require access to resources inside a customer-managed VPC. Therefore, I decided not to
+configure `VpcConfig` at this stage [[42]](#ref-42).
+
+**Static Analysis Review**
+The template analysis reported two recommendations:
+
+1. Remove the inline `Policies` property from the IAM Role.
+2. Configure `VpcConfig.SecurityGroupIds` and `VpcConfig.SubnetIds`.
+
+I kept the inline IAM policy because it grants permissions only to the required DynamoDB operations on the project
+table. I may refactor it into a separate policy resource later.
+
+I did not add a VPC configuration because the application currently uses managed AWS services and does not require
+access to private VPC resources.
+
+These recommendations remain documented rather than being treated as successful security checks.
+
+**Validation**
+The template was validated using `aws cloudformation validate-template`.
+CloudFormation returned `CAPABILITY_IAM` because the template contains an IAM Role.
+
+**Result:** Template validation passed.
+
+**Limitation**
+
+The Java Lambda function has not yet been deployed or tested in AWS. DynamoDB application logic and API Gateway
+integration are still pending.
+
+### Iteration 13 — Maven Multi-Module Refactoring and Java Lambda Runtime Verification
+
+**Objective**
+Resolve the deployed Java Lambda `ClassNotFoundException`, introduce a modular Maven project structure and verify the
+updated function in AWS.
+
+**Problem and root cause**
+The initial Lambda invocation returned `FunctionError: Unhandled` with:
+
+```text
+ClassNotFoundException: ie.atu.lab.MessageHandler
+```
+
+The earlier Maven build had reported `BUILD SUCCESS`, but the deployment JAR did not contain `MessageHandler.class`. The
+Java source was located under `app/src/main/java`, outside the default `src/main/java` directory used by the root Maven
+project. A successful packaging command therefore did not prove that the Lambda handler was included.
+
+**Implementation**
+- Refactored the root `pom.xml` to use `pom` packaging and declare the `lambda-app` module. Maven supports this
+  parent/child project structure through its reactor and module configuration [[43]](#ref-43).
+- Created `lambda-app/pom.xml` with the AWS Lambda Java Core dependency, AWS SDK for DynamoDB and Maven Shade Plugin.
+  Packaging dependencies in a JAR follows AWS guidance for Java Lambda deployments [[28]](#ref-28).
+- Moved `MessageHandler.java` to `lambda-app/src/main/java/ie/atu/lab/MessageHandler.java` without changing the
+  handler's Java package.
+- Rebuilt the project using `mvn clean package` and checked the generated JAR with:
+
+```powershell
+jar tf lambda-app/target/lambda-app-1.0-SNAPSHOT.jar | Select-String "MessageHandler"
+```
+
+**Actual result:** `ie/atu/lab/MessageHandler.class` was present in the JAR.
+
+**Deployment and version control**
+Uploaded the rebuilt JAR to the existing private artifact bucket while retaining the established S3 object key:
+
+```powershell
+aws s3 cp `
+  lambda-app/target/lambda-app-1.0-SNAPSHOT.jar `
+  s3://atu-l00213593-lambda-897068845214-eu-west-1-an/lambda/student-message-board-1.0-SNAPSHOT.jar `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+Because the artifact bucket has S3 Versioning enabled, the new upload received a new object version. I added
+`S3ObjectVersion` to the Lambda `Code` property in `infrastructure/three-tier.yaml` to identify the precise deployment
+artifact. CloudFormation supports this property for versioned S3 objects [[44]](#ref-44).
+
+```yaml
+Code:
+  S3Bucket: atu-l00213593-lambda-897068845214-eu-west-1-an
+  S3Key: lambda/student-message-board-1.0-SNAPSHOT.jar
+  S3ObjectVersion: 3DfFewxM3tosowV.2CXsfERBfC3Xt38c
+```
+
+This avoids relying on an overwritten S3 key alone to update an existing Lambda function.
+
+**IAM permission troubleshooting**
+
+The first CloudFormation update failed for `MessageLambdaFunction` because the deploying IAM user `atu-devops-lab` was
+not allowed to perform `s3:GetObjectVersion`. CloudFormation reported `UPDATE_FAILED`, followed by
+`UPDATE_ROLLBACK_COMPLETE`.
+
+I added `s3:GetObjectVersion` to the existing `UploadLambdaArtifact` statement in `ATU-CloudFormation-Lab-Policy`. Its
+resource remained restricted to the single Lambda JAR object, rather than allowing access to every object in the bucket.
+AWS distinguishes object-version read permissions from ordinary object reads [[45]](#ref-45).
+
+After saving the updated IAM policy, I repeated the CloudFormation deployment:
+
+```powershell
+aws cloudformation deploy `
+  --template-file infrastructure/three-tier.yaml `
+  --stack-name ATU-Three-Tier `
+  --capabilities CAPABILITY_IAM `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Actual result:** `Successfully created/updated stack - ATU-Three-Tier`.
+
+**Runtime verification**
+I invoked the updated function directly through the AWS CLI [[46]](#ref-46):
+
+```powershell
+aws lambda invoke `
+  --function-name ATU-Three-Tier-MessageLambdaFunction-gAofVDXQaSuj `
+  --payload '{}' `
+  --cli-binary-format raw-in-base64-out `
+  --region eu-west-1 `
+  --profile atu-lab `
+  lambda-response.json
+
+Get-Content lambda-response.json
+```
+
+| Check                           | Actual result                           |
+|---------------------------------|-----------------------------------------|
+| Maven multi-module build        | `BUILD SUCCESS`                         |
+| Handler class in deployment JAR | `ie/atu/lab/MessageHandler.class` found |
+| CloudFormation redeployment     | Successful                              |
+| Lambda invoke API status        | `StatusCode: 200`                       |
+| Lambda `FunctionError`          | Not present                             |
+| Handler response status         | `200`                                   |
+| Response body                   | `{"message":"Hello from Java Lambda!"}` |
+
+**Result: Passed.** The deployed Java Lambda handler executed successfully and returned the expected JSON response. The
+test verifies Lambda execution, not yet the full three-tier application.
+
+**Design decision and next steps**
+
+I chose a Maven Multi-Module structure because this project will support both a Java Lambda implementation and a Spring
+Boot application running on EC2. The `lambda-app` module is implemented now; shared application logic (`common`) and the
+EC2 application (`ec2-app`) are planned for later iterations. This avoids moving the same source files twice.
+
+**Limitations:** The handler currently returns a static message. API Gateway connectivity and DynamoDB read/write
+operations have not yet been implemented or tested. The IAM policy is managed separately in the AWS Console, not by this
+CloudFormation stack.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -902,3 +1342,117 @@ Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.h
 **[24]** Amazon Web Services (n.d.) *Managing the lifecycle of objects*.
 Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
 (Accessed: 22 October 2026).
+
+<a id="ref-25"></a>
+**[25]** Amazon Web Services (n.d.) *Lambda runtimes*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
+(Accessed: 22 October 2026).
+
+<a id="ref-26"></a>
+**[26]** Amazon Web Services (n.d.) *Define Lambda function handler in Java*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/java-handler.html
+(Accessed: 22 October 2026).
+
+<a id="ref-27"></a>
+**[27]** Amazon Web Services (n.d.) *Set up an Apache Maven project that uses the AWS SDK for Java 2.x*.
+Available at: https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/setup-project-maven.html
+(Accessed: 22 October 2026).
+
+<a id="ref-28"></a>
+**[28]** Amazon Web Services (n.d.) *Deploy Java Lambda functions with .zip or JAR file archives*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/java-package.html
+(Accessed: 22 October 2026).
+
+<a id="ref-29"></a>
+**[29]** Apache Software Foundation (n.d.) *Apache Maven Shade Plugin*.
+Available at: https://maven.apache.org/plugins/maven-shade-plugin/
+(Accessed: 22 October 2026).
+
+<a id="ref-30"></a>
+**[30]** Amazon Web Services (n.d.) *Fn::Sub — CloudFormation intrinsic function*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-sub.html
+(Accessed: 22 October 2026).
+
+<a id="ref-31"></a>
+**[31]** Amazon Web Services (n.d.) *CloudFormation pseudo parameters*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pseudo-parameter-reference.html
+(Accessed: 22 October 2026).
+
+<a id="ref-32"></a>
+**[32]** Amazon Web Services (n.d.) *AWS::DynamoDB::Table*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-dynamodb-table.html
+(Accessed: 22 October 2026).
+
+<a id="ref-33"></a>
+**[33]** Amazon Web Services (n.d.) *AWS::IAM::Role*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-role.html
+(Accessed: 22 October 2026).
+
+<a id="ref-34"></a>
+**[34]** Amazon Web Services (n.d.) *Defining Lambda function permissions with an execution role*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html
+(Accessed: 22 October 2026).
+
+<a id="ref-35"></a>
+**[35]** Amazon Web Services (n.d.) *DeletionPolicy attribute*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-deletionpolicy.html
+(Accessed: 22 October 2026).
+
+<a id="ref-36"></a>
+**[36]** Amazon Web Services (n.d.) *UpdateReplacePolicy attribute*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-updatereplacepolicy.html
+(Accessed: 22 October 2026).
+
+<a id="ref-37"></a>
+**[37]** Amazon Web Services (n.d.) *AWS::DynamoDB::Table SSESpecification*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-dynamodb-table-ssespecification.html
+(Accessed: 22 October 2026).
+
+<a id="ref-38"></a>
+**[38]** Amazon Web Services (n.d.) *DynamoDB encryption at rest usage notes*.
+Available at: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/encryption.usagenotes.html
+(Accessed: 22 October 2026).
+
+<a id="ref-39"></a>
+**[39]** Amazon Web Services (n.d.) *AWS::S3::Bucket — AWS CloudFormation Template Reference*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-s3-bucket.html
+(Accessed: 22 October 2026).
+
+<a id="ref-40"></a>
+**[40]** Amazon Web Services (n.d.) *Enabling Amazon S3 server access logging*.
+Available at: https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html
+(Accessed: 22 October 2026).
+
+<a id="ref-41"></a>
+**[41]** Amazon Web Services (n.d.) *HeadObject — Amazon S3 API Reference*.
+Available at: https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
+(Accessed: 22 October 2026).
+
+<a id="ref-42"></a>
+**[42]** Amazon Web Services (n.d.) *Configure a Lambda function to access resources in a VPC*.
+Available at: https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html
+(Accessed: 23 October 2026).
+
+<a id="ref-43"></a>
+**[43]** Apache Software Foundation (n.d.) *Guide to Working with Multiple Modules*.
+Available at: https://maven.apache.org/guides/mini/guide-multiple-modules.html
+(Accessed: 23 October 2026).
+
+<a id="ref-44"></a>
+**[44]** Amazon Web Services (n.d.) *AWS::Lambda::Function Code — AWS CloudFormation Template Reference*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-lambda-function-code.html
+(Accessed: 23 October 2026).
+
+<a id="ref-45"></a>
+**[45]** Amazon Web Services (n.d.) *Actions, resources, and condition keys for Amazon S3*.
+Available at: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazons3.html
+(Accessed: 23 October 2026).
+
+<a id="ref-46"></a>
+**[46]** Amazon Web Services (n.d.) *invoke — AWS CLI Command Reference*.
+Available at: https://docs.aws.amazon.com/cli/latest/reference/lambda/invoke.html
+(Accessed: 23 October 2026).

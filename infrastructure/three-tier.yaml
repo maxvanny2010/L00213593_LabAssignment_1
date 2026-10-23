@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  ATU CloudFormation Lab - Part A(b).
+  Three-tier architecture using API Gateway, Java Lambda and DynamoDB.
+
+Resources:
+
+  # Store messages submitted through the application
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${AWS::StackName}-messages'
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: false
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: ATU-CloudFormation-Lab
+        - Key: StudentNumber
+          Value: L00213593
+        - Key: Component
+          Value: DatabaseTier
+
+  # Execution role for the Java Lambda function
+  MessageLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+      Policies:
+        - PolicyName: MessagesTableAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Scan
+                Resource: !GetAtt MessagesTable.Arn
+
+  # Java application running on AWS Lambda
+  MessageLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Java Lambda for the ATU Student Message Board
+      Runtime: java21
+      Handler: ie.atu.lab.MessageHandler::handleRequest
+      Role: !GetAtt MessageLambdaRole.Arn
+
+      Code:
+        S3Bucket: atu-l00213593-lambda-897068845214-eu-west-1-an
+        S3Key: lambda/student-message-board-1.0-SNAPSHOT.jar
+        S3ObjectVersion: 3DfFewxM3tosowV.2CXsfERBfC3Xt38c
+
+      MemorySize: 512
+      Timeout: 15
+
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MessagesTable
+
+Outputs:
+
+  MessagesTableName:
+    Description: Name of the DynamoDB messages table
+    Value: !Ref MessagesTable
