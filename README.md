@@ -1253,6 +1253,32 @@ The invocation permission is defined in the template but has not yet been deploy
 **Next Step**
 Expose the API endpoint through CloudFormation Outputs and verify the deployment.
 
+#### Step 3 — HTTP API Endpoint Output
+
+**Objective**
+Expose the HTTPS endpoint of the Student Message Board API through CloudFormation Outputs.
+
+**Implementation**
+- Added `MessageApiEndpoint` to `infrastructure/three-tier.yaml`.
+- Used the `ApiEndpoint` attribute of `AWS::ApiGatewayV2::Api`.
+- Added `/message` to the generated URL to match the configured route.
+
+**Design Decision**
+I decided to use CloudFormation Outputs instead of manually copying the API Gateway endpoint from the AWS Console.
+The `ApiEndpoint` attribute provides the generated HTTPS address. CloudFormation uses `!Sub` to append the application
+route [[47]](#ref-47).
+
+This makes the API endpoint easier to retrieve after deployment without hardcoding an API identifier.
+
+**Validation**
+CloudFormation template validate.
+
+**Current Status**
+The endpoint output is defined but has not yet been deployed or tested.
+
+**Next Step**
+Deploy the HTTP API through CloudFormation and verify the `GET /message` endpoint.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -1538,7 +1564,6 @@ Available at: https://docs.aws.amazon.com/cli/latest/reference/lambda/invoke.htm
 **[47]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Api*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-api.html
 (Accessed: 23 October 2026).
-
 
 <a id="ref-48"></a>
 **[48]** Amazon Web Services (n.d.) *AWS::Lambda::Permission*.
