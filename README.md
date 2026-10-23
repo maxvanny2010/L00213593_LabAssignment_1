@@ -57,22 +57,23 @@ The static website infrastructure has been deployed and verified using AWS Cloud
 
 ### Part A(b) — Three-Tier Architecture
 
-**Status:** In progress. The Java Lambda and DynamoDB infrastructure are deployed; direct Lambda invocation has passed.
-API Gateway and database operations remain pending.
+**Status:** In progress. The API Gateway HTTP API, Java 21 Lambda application and Amazon DynamoDB table are deployed and
+tested end to end. The web user interface is not yet integrated with the API.
 
-The next stage will implement a three-tier architecture consisting of a Web Tier, Application Tier and Database Tier.
+| Tier             | Component                                             | Current status                              |
+|------------------|-------------------------------------------------------|---------------------------------------------|
+| Web Tier         | Static HTML website delivered using S3 and CloudFront | Deployed; API integration pending           |
+| Application Tier | API Gateway HTTP API and Java Lambda                  | Deployed; GET and IAM-protected POST tested |
+| Database Tier    | Amazon DynamoDB messages table                        | Deployed; write and read verified           |
 
-The infrastructure will be defined and deployed using AWS CloudFormation.
+The application supports a public `GET /message` endpoint and an `AWS_IAM`-protected `POST /message` endpoint. A signed
+POST request returned `201 Created` and a subsequent GET returned the same saved record. Both application endpoints are
+managed through the `ATU-Three-Tier` CloudFormation stack. The static website is managed through the separate
+`ATU-Static-Website` stack.
 
-### Part A(b) — Three-Tier Architecture
-
-Design and deploy a three-tier architecture consisting of:
-
-- **Web Tier:** User interface.
-- **Application Tier:** Application logic and request processing.
-- **Database Tier:** Data storage and management.
-
-The infrastructure will be managed using AWS CloudFormation.
+The infrastructure is defined in AWS CloudFormation templates. Some deployment-user IAM bootstrap permissions were
+configured manually and still require security remediation; therefore the deployment process is not yet fully managed as
+IaC.
 
 ## 3. Development Approach
 
@@ -1761,7 +1762,7 @@ separating responsibilities into individual classes.
 
 - Implemented HTTP method handling for `GET` and `POST`.
 - Preserved the existing DynamoDB read functionality.
-- Added message creation using DynamoDB `PutItem`.
+- Added message creation using DynamoDB `PutItem` [[49]](#ref-49).
 - Added input validation for message content.
 - Limited message length to 500 characters.
 - Generated unique message identifiers using UUID.
@@ -1888,7 +1889,7 @@ Add an HTTP POST route to the existing API Gateway configuration for creating me
 **Implementation**
 
 - Added `MessagePostRoute` to `infrastructure/three-tier.yaml`.
-- Used `AWS::ApiGatewayV2::Route`.
+- Used `AWS::ApiGatewayV2::Route` [[50]](#ref-50).
 - Configured the route key `POST /message`.
 - Reused the existing Quick Create Lambda integration `zv9cjno`.
 - Preserved the existing `GET /message` route and default deployment stage.
@@ -1958,7 +1959,7 @@ Protect the message creation endpoint from unauthenticated public requests.
 **Design Decision**
 I selected AWS IAM authorization for the POST route because message creation modifies data stored in DynamoDB.
 Clients must sign POST requests using AWS Signature Version 4 and have the `execute-api:Invoke` permission for the
-route.
+route [[51]](#ref-51).
 This prevents unauthenticated users from submitting messages.
 The Lambda execution role remains responsible for DynamoDB access, while API Gateway controls who may invoke the POST
 route.
@@ -1977,6 +1978,48 @@ The protected POST route has not yet been deployed or tested.
 **Next Step**
 Validate the template, review the proposed CloudFormation changes and deploy the protected POST route.
 
+#### Step 13 — Review and Deploy the Protected POST Route
+
+**Objective**
+Review the proposed infrastructure changes before enabling the IAM-protected `POST /message` route in the existing HTTP
+API.
+
+**Implementation**
+
+- Validated `infrastructure/three-tier.yaml` with AWS CloudFormation.
+- Created a CloudFormation Change Set named `add-protected-post-message` for the `ATU-Three-Tier` stack.
+- Inspected the proposed resource changes before execution, following the AWS Change Set workflow [[54]](#ref-54).
+- Confirmed that the Change Set added **two** resources: `MessagePostRoute` and `MessagePostLambdaPermission`, without
+  replacing the existing API.
+- Executed the Change Set and confirmed the stack reached `UPDATE_COMPLETE`.
+- Sent an anonymous POST request to the `/message` endpoint to verify the configured IAM access
+  restriction [[51]](#ref-51).
+- Rechecked that the public GET endpoint continued to work.
+
+**Actual Results**
+
+| Check                           | Result                                            |
+|---------------------------------|---------------------------------------------------|
+| Change Set                      | `CREATE_COMPLETE`, then `AVAILABLE` for execution |
+| Preview                         | Two resource additions; no replacements           |
+| Stack update                    | `UPDATE_COMPLETE`                                 |
+| Unauthenticated `POST /message` | `HTTP 403 Forbidden`                              |
+| Existing `GET /message`         | `HTTP 200 OK`                                     |
+
+**Design Decision**
+I used a Change Set to review the impact of the new route and Lambda invocation permission before updating the deployed
+stack. The POST route retains `AuthorizationType: AWS_IAM`; anonymous users cannot create messages. GET remains public.
+A successful Change Set preview does not guarantee successful deployment, so I checked the resulting stack status and
+HTTP responses [[54]](#ref-54).
+
+**Limitations**
+The route reuses the integration identifier `zv9cjno`, originally created by Quick Create. This is a known hardcoded
+dependency on the existing API and must be reconsidered if that API is recreated. At this stage the protected POST route
+was not yet tested with an authorised client; the client policy and signed POST test follow in Steps 14 and 15.
+
+**Next Step**
+Define a scoped IAM permission allowing the lab test client to invoke only the protected `POST /message` route.
+
 #### Step 14 — Define IAM Permission for Authenticated POST Requests
 
 **Objective**
@@ -1985,7 +2028,7 @@ write access.
 
 **Implementation**
 
-- Added `MessagePostClientPolicy` using `AWS::IAM::Policy`.
+- Added `MessagePostClientPolicy` using `AWS::IAM::Policy` [[52]](#ref-52).
 - Attached the inline policy to the existing `atu-devops-lab` IAM user.
 - Granted only `execute-api:Invoke`.
 - Restricted the permission to `POST /message` on the project HTTP API.
@@ -1999,9 +2042,117 @@ The policy allows authenticated testing of message creation without granting dir
 **Validation**
 CloudFormation template validation passed.
 The authenticated POST request has not yet been tested.
+The policy ARN restricts invocation to the specific API, method and path [[53]](#ref-53).
 
 **Next Step**
 Review the CloudFormation changes, deploy the IAM policy and test an AWS SigV4-signed POST request.
+
+#### Step 15 — Deploy and Verify Authenticated Message Creation
+
+**Objective**
+Deploy the IAM-protected POST endpoint and verify that messages can be created and retrieved through API Gateway, Java
+Lambda and DynamoDB.
+
+**Implementation**
+
+- Added `MessagePostClientPolicy` using `AWS::IAM::Policy` [[52]](#ref-52).
+- Granted `execute-api:Invoke` to the existing lab IAM user for `POST /message`.
+- Preserved `AWS_IAM` authorization on the POST route.
+- Deployed the updated infrastructure using AWS CloudFormation.
+- Tested message creation using an AWS Signature Version 4 signed HTTP request.
+- Retrieved the created message using the existing GET endpoint.
+
+**Deployment and Troubleshooting**
+The initial deployment failed because the IAM user `atu-devops-lab` lacked the `iam:GetUserPolicy` permission required
+during creation of the CloudFormation-managed inline policy.
+
+CloudFormation rolled back the failed update.
+
+I temporarily extended the deployment user's IAM permissions to support management of its inline policy and repeated the
+deployment.
+
+The protected POST route had already been reviewed and deployed through a separate Change Set in Step
+13 [[54]](#ref-54). The IAM client policy was subsequently deployed using `aws cloudformation deploy` with
+`CAPABILITY_NAMED_IAM`.
+
+**Result:** CloudFormation deployment completed successfully.
+
+**Security Testing**
+I sent an unauthenticated POST request.
+
+**Actual Result:** `HTTP 403 Forbidden`.
+
+I then sent an authenticated POST request using temporary credentials from the `atu-lab` profile and AWS Signature
+Version 4. The AWS CLI supports credential export for tools that need temporary credentials [[55]](#ref-55).
+
+**Actual Result:**
+
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+
+```json
+{
+  "id": "68cc1fcd-a965-45df-a124-05c3c6812fe8",
+  "message": "My first DynamoDB message",
+  "createdAt": "2026-10-23T21:51:07.150955961Z"
+}
+```
+
+**GET Verification**
+
+I retrieved the messages using:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result:**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+
+```json
+{
+  "count": 1,
+  "messages": [
+    {
+      "id": "68cc1fcd-a965-45df-a124-05c3c6812fe8",
+      "message": "My first DynamoDB message",
+      "createdAt": "2026-10-23T21:51:07.150955961Z"
+    }
+  ]
+}
+```
+
+**Design Decisions**
+I selected AWS IAM authorization to protect message creation while keeping message retrieval publicly accessible.
+The client receives permission to invoke only the POST route, while the Lambda execution role provides the required
+DynamoDB access.
+The client does not need direct DynamoDB permissions.
+
+**Testing and Validation**
+
+- [x] CloudFormation deployment completed successfully.
+- [x] Anonymous POST returned HTTP 403.
+- [x] SigV4-signed POST returned HTTP 201.
+- [x] DynamoDB message creation succeeded.
+- [x] GET returned HTTP 200.
+- [x] The created message was retrieved with the correct ID, text and timestamp.
+- [x] Existing GET functionality remained operational.
+
+**Security Limitations**
+The deployment IAM user temporarily received permissions to manage its own inline IAM policies. This is not suitable as
+a permanent least-privilege configuration because it may allow privilege escalation.
+These bootstrap permissions must be removed after testing and replaced with an appropriately controlled deployment role.
+The POST endpoint requires AWS credentials and is not yet suitable for direct use by anonymous visitors to the static
+website.
+
+**Next Step**
+Review and remove temporary IAM bootstrap permissions, then prepare the next application integration stage.
 
 ## 6. Design Decisions
 
@@ -2024,7 +2175,9 @@ Decisions are supported by relevant AWS documentation cited in the References se
 Each development stage is tested and documented before being merged into the main branch.
 
 Test results and issues are documented in the relevant iteration, including CloudFormation validation,
-stack status, website delivery over HTTPS and the direct S3 access denial.
+stack status, website delivery over HTTPS, direct S3 access denial, and HTTP API/DynamoDB integration tests.
+The most recent end-to-end tests returned HTTP 403 for anonymous POST, HTTP 201 for a signed POST, and HTTP 200 for GET
+returning the newly created DynamoDB record.
 AWS recommends validating CloudFormation templates before deploying infrastructure [[2]](#ref-2).
 
 ## 8. References
@@ -2292,4 +2445,40 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 <a id="ref-48"></a>
 **[48]** Amazon Web Services (n.d.) *AWS::Lambda::Permission*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lambda-permission.html
+(Accessed: 23 October 2026).
+
+<a id="ref-49"></a>
+**[49]** Amazon Web Services (n.d.) *DynamoDB examples using SDK for Java 2.x*.
+Available at: https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/java_dynamodb_code_examples.html
+(Accessed: 23 October 2026).
+
+<a id="ref-50"></a>
+**[50]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Route*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-route.html
+(Accessed: 23 October 2026).
+
+<a id="ref-51"></a>
+**[51]** Amazon Web Services (n.d.) *Control access to HTTP APIs with IAM authorization in API Gateway*.
+Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-access-control-iam.html
+(Accessed: 23 October 2026).
+
+<a id="ref-52"></a>
+**[52]** Amazon Web Services (n.d.) *AWS::IAM::Policy*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-policy.html
+(Accessed: 23 October 2026).
+
+<a id="ref-53"></a>
+**[53]** Amazon Web Services (n.d.) *API Gateway Amazon Resource Name (ARN) reference*.
+Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/arn-format-reference.html
+(Accessed: 23 October 2026).
+
+<a id="ref-54"></a>
+**[54]** Amazon Web Services (n.d.) *Update CloudFormation stacks using change sets*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html
+(Accessed: 23 October 2026).
+
+<a id="ref-55"></a>
+**[55]** Amazon Web Services (n.d.) *configure export-credentials — AWS CLI Command Reference*.
+Available at: https://docs.aws.amazon.com/cli/latest/reference/configure/export-credentials.html
 (Accessed: 23 October 2026).
