@@ -1472,6 +1472,69 @@ The HTTP endpoint remains publicly accessible without authentication and current
 The HTTP API deployment and invocation tests were successful. Deployment permissions were subsequently reduced, while
 the existing public endpoint continued to operate correctly.
 
+### Iteration 15 — DynamoDB Integration
+
+#### Step 1 — Read DynamoDB from Java Lambda
+
+**Objective**
+Connect the existing Java Lambda function to the DynamoDB messages table using AWS SDK for Java 2.x.
+
+**Existing Infrastructure**
+The following components were already configured:
+
+- DynamoDB table `ATU-Three-Tier-messages`.
+- Primary key `id` with type `String`.
+- DynamoDB SDK dependency in the Maven project.
+- Lambda environment variable `TABLE_NAME`.
+- IAM permissions `dynamodb:GetItem`, `dynamodb:Scan` and `dynamodb:PutItem`, restricted to the messages table.
+
+**Implementation**
+
+- Updated `MessageHandler.java` to create a `DynamoDbClient`.
+- Retrieved the table name from the `TABLE_NAME` environment variable.
+- Added a DynamoDB `ScanRequest` with a limit of 20 evaluated items.
+- Added CloudWatch logging for the number of returned items.
+- Preserved the existing JSON response for the `GET /message` endpoint.
+
+**Design Decision**
+I decided to implement DynamoDB read access before adding write operations.
+This allows the connection between the Application Tier and Data Tier to be verified without modifying stored data.
+The table name is provided through an environment variable instead of being hardcoded in Java.
+The DynamoDB client is created once and reused across Lambda invocations.
+
+**Validation**
+Maven compilation and packaging passed using `mvn clean package`.
+
+#### Step 2 — Upload Updated Java Lambda Artifact
+
+**Objective**
+Upload the updated Java Lambda deployment package to Amazon S3 and reference its exact version in CloudFormation.
+
+**Implementation**
+
+- Built the Java Lambda application using Maven.
+- Uploaded `lambda-app/target/lambda-app-1.0-SNAPSHOT.jar` to the existing S3 artifact bucket.
+- Retrieved the S3 object `VersionId`.
+- Updated `S3ObjectVersion` in `infrastructure/three-tier.yaml`.
+
+**Artifact Details**
+
+- S3 bucket: `atu-l00213593-lambda-897068845214-eu-west-1-an`
+- S3 key: `lambda/student-message-board-1.0-SNAPSHOT.jar`
+- S3 object version: `qyfD3YVfEVFyMyaRUn5AvheRT_ILhKwt`
+
+**Design Decision**
+I used S3 object versioning to reference a specific Lambda deployment package instead of relying on the latest object
+stored under the same key.
+This makes the deployment reproducible and allows CloudFormation to identify the exact JAR version.
+
+**Validation**
+The S3 upload completed successfully and AWS returned an object version identifier.
+CloudFormation template validation passed.
+
+**Next Step**
+Validate the updated CloudFormation template before deploying the Lambda function.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
