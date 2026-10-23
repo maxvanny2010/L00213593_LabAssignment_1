@@ -1224,6 +1224,35 @@ Configure permission for API Gateway to invoke the Java Lambda function.
 The Lambda integration uses the API Gateway Lambda invocation URI generated with `!Sub` and the Lambda function ARN.
 This follows the CloudFormation Quick Create example [[47]](#ref-47).
 
+#### Step 2 — Lambda Invocation Permission
+
+**Objective**
+Allow the HTTP API to invoke the existing Java Lambda function.
+
+**Implementation**
+
+- Added `MessageApiLambdaPermission` to `infrastructure/three-tier.yaml`.
+- Used the `AWS::Lambda::Permission` resource.
+- Granted `lambda:InvokeFunction` to the API Gateway service.
+- Restricted the permission to the project HTTP API and `GET /message` route using `SourceArn`.
+
+**Design Decision**
+API Gateway requires permission to invoke the Java Lambda function.
+
+I used a Lambda resource-based policy instead of modifying the Lambda execution role. The execution role controls what
+Lambda can access, while this permission controls which service can invoke the function [[48]](#ref-48).
+
+The `SourceArn` uses CloudFormation references rather than hardcoded API identifiers.
+
+**Validation**
+CloudFormation template validation is pending.
+
+**Current Status**
+The invocation permission is defined in the template but has not yet been deployed or tested.
+
+**Next Step**
+Expose the API endpoint through CloudFormation Outputs and verify the deployment.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -1508,4 +1537,10 @@ Available at: https://docs.aws.amazon.com/cli/latest/reference/lambda/invoke.htm
 <a id="ref-47"></a>
 **[47]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Api*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-api.html
+(Accessed: 23 October 2026).
+
+
+<a id="ref-48"></a>
+**[48]** Amazon Web Services (n.d.) *AWS::Lambda::Permission*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lambda-permission.html
 (Accessed: 23 October 2026).
