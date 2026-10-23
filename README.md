@@ -57,22 +57,23 @@ The static website infrastructure has been deployed and verified using AWS Cloud
 
 ### Part A(b) — Three-Tier Architecture
 
-**Status:** In progress. The Java Lambda and DynamoDB infrastructure are deployed; direct Lambda invocation has passed.
-API Gateway and database operations remain pending.
+**Status:** In progress. The API Gateway HTTP API, Java 21 Lambda application and Amazon DynamoDB table are deployed and
+tested end to end. The web user interface is not yet integrated with the API.
 
-The next stage will implement a three-tier architecture consisting of a Web Tier, Application Tier and Database Tier.
+| Tier             | Component                                             | Current status                              |
+|------------------|-------------------------------------------------------|---------------------------------------------|
+| Web Tier         | Static HTML website delivered using S3 and CloudFront | Deployed; API integration pending           |
+| Application Tier | API Gateway HTTP API and Java Lambda                  | Deployed; GET and IAM-protected POST tested |
+| Database Tier    | Amazon DynamoDB messages table                        | Deployed; write and read verified           |
 
-The infrastructure will be defined and deployed using AWS CloudFormation.
+The application supports a public `GET /message` endpoint and an `AWS_IAM`-protected `POST /message` endpoint. A signed
+POST request returned `201 Created` and a subsequent GET returned the same saved record. Both application endpoints are
+managed through the `ATU-Three-Tier` CloudFormation stack. The static website is managed through the separate
+`ATU-Static-Website` stack.
 
-### Part A(b) — Three-Tier Architecture
-
-Design and deploy a three-tier architecture consisting of:
-
-- **Web Tier:** User interface.
-- **Application Tier:** Application logic and request processing.
-- **Database Tier:** Data storage and management.
-
-The infrastructure will be managed using AWS CloudFormation.
+The infrastructure is defined in AWS CloudFormation templates. Some deployment-user IAM bootstrap permissions were
+configured manually and still require security remediation; therefore the deployment process is not yet fully managed as
+IaC.
 
 ## 3. Development Approach
 
@@ -1472,6 +1473,730 @@ The HTTP endpoint remains publicly accessible without authentication and current
 The HTTP API deployment and invocation tests were successful. Deployment permissions were subsequently reduced, while
 the existing public endpoint continued to operate correctly.
 
+### Iteration 15 — DynamoDB Integration
+
+#### Step 1 — Read DynamoDB from Java Lambda
+
+**Objective**
+Connect the existing Java Lambda function to the DynamoDB messages table using AWS SDK for Java 2.x.
+
+**Existing Infrastructure**
+The following components were already configured:
+
+- DynamoDB table `ATU-Three-Tier-messages`.
+- Primary key `id` with type `String`.
+- DynamoDB SDK dependency in the Maven project.
+- Lambda environment variable `TABLE_NAME`.
+- IAM permissions `dynamodb:GetItem`, `dynamodb:Scan` and `dynamodb:PutItem`, restricted to the messages table.
+
+**Implementation**
+
+- Updated `MessageHandler.java` to create a `DynamoDbClient`.
+- Retrieved the table name from the `TABLE_NAME` environment variable.
+- Added a DynamoDB `ScanRequest` with a limit of 20 evaluated items.
+- Added CloudWatch logging for the number of returned items.
+- Preserved the existing JSON response for the `GET /message` endpoint.
+
+**Design Decision**
+I decided to implement DynamoDB read access before adding write operations.
+This allows the connection between the Application Tier and Data Tier to be verified without modifying stored data.
+The table name is provided through an environment variable instead of being hardcoded in Java.
+The DynamoDB client is created once and reused across Lambda invocations.
+
+**Validation**
+Maven compilation and packaging passed using `mvn clean package`.
+
+#### Step 2 — Upload Updated Java Lambda Artifact
+
+**Objective**
+Upload the updated Java Lambda deployment package to Amazon S3 and reference its exact version in CloudFormation.
+
+**Implementation**
+
+- Built the Java Lambda application using Maven.
+- Uploaded `lambda-app/target/lambda-app-1.0-SNAPSHOT.jar` to the existing S3 artifact bucket.
+- Retrieved the S3 object `VersionId`.
+- Updated `S3ObjectVersion` in `infrastructure/three-tier.yaml`.
+
+**Artifact Details**
+
+- S3 bucket: `atu-l00213593-lambda-897068845214-eu-west-1-an`
+- S3 key: `lambda/student-message-board-1.0-SNAPSHOT.jar`
+- S3 object version: `qyfD3YVfEVFyMyaRUn5AvheRT_ILhKwt`
+
+**Design Decision**
+I used S3 object versioning to reference a specific Lambda deployment package instead of relying on the latest object
+stored under the same key.
+This makes the deployment reproducible and allows CloudFormation to identify the exact JAR version.
+
+**Validation**
+The S3 upload completed successfully and AWS returned an object version identifier.
+CloudFormation template validation passed.
+
+#### Step 3 — Deploy and Verify DynamoDB Read Access
+
+**Objective**
+Deploy the updated Java Lambda function and verify that the Application Tier can read data from DynamoDB.
+
+**Deployment**
+I deployed the updated `infrastructure/three-tier.yaml` template to the existing `ATU-Three-Tier` CloudFormation stack.
+The deployment used the versioned Java Lambda JAR stored in Amazon S3.
+
+**Result:** CloudFormation deployment completed successfully.
+
+**HTTP Testing**
+
+I tested the existing API Gateway endpoint:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"message":"Hello from Java Lambda!"}
+```
+
+**DynamoDB Verification**
+
+I inspected the Java Lambda execution logs using CloudWatch:
+
+```powershell
+aws logs tail /aws/lambda/ATU-Three-Tier-MessageLambdaFunction-gAofVDXQaSuj `
+  --since 30m `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Actual CloudWatch Result**
+
+```text
+Message Board request received
+DynamoDB scan completed. Items returned: 0
+```
+
+The DynamoDB `Scan` operation completed successfully and returned zero items.
+
+**IAM Troubleshooting**
+
+The first attempt to read CloudWatch Logs failed with `AccessDeniedException` because the IAM user `atu-devops-lab` did
+not have `logs:FilterLogEvents` permission.
+
+I updated the existing customer-managed policy `ATU-CloudFormation-Lab-Policy` to allow `logs:FilterLogEvents` for the
+specific Java Lambda log group.
+
+After saving the policy, the log retrieval succeeded.
+
+**Logging Warning**
+CloudWatch reported an SLF4J warning because no logging provider was available.
+This did not prevent the DynamoDB request from completing. The application's messages were successfully recorded using
+the Lambda `Context` logger.
+
+**Design Decision**
+I verified the DynamoDB integration through CloudWatch Logs rather than relying only on the HTTP response.
+The API still returns a static welcome message, so an HTTP 200 response alone cannot confirm that a database request was
+executed.
+
+**Validation**
+
+- CloudFormation deployment: **Passed**.
+- API Gateway `GET /message`: **Passed**.
+- Java Lambda execution: **Passed**.
+- DynamoDB `Scan`: **Passed**.
+- CloudWatch Logs verification: **Passed**.
+
+**Limitations**
+
+- The API currently returns a static JSON response.
+- DynamoDB records are not yet included in the HTTP response.
+- Message creation and retrieval through the API have not yet been implemented.
+
+**Next Step**
+Update the Java Lambda handler to return messages retrieved from DynamoDB as JSON.
+
+#### Step 4 — Return DynamoDB Messages as JSON
+
+**Objective**
+Update the Java Lambda function to return messages retrieved from DynamoDB through the existing HTTP API.
+
+**Implementation**
+
+- Updated `MessageHandler.java` to convert DynamoDB items into Java objects.
+- Added Jackson Databind for JSON serialization.
+- Mapped the `id`, `message` and `createdAt` attributes.
+- Updated the Lambda response to contain `messages` and `count`.
+- Limited the DynamoDB scan to 20 evaluated items per request.
+
+**Design Decision**
+I decided to return structured JSON instead of a static welcome message.
+Jackson handles JSON serialization and escaping, avoiding manual construction of JSON strings.
+The existing `GET /message` route will be reused without introducing additional API Gateway resources.
+
+**Validation**
+Maven compilation and packaging passed using `mvn clean package`.
+The updated handler has not yet been deployed or tested through API Gateway.
+
+**Next Step**
+Build the Java Lambda package, upload a new version to S3 and deploy it through CloudFormation.
+
+#### Step 5 — Upload Updated Java Lambda Artifact
+
+**Objective**
+Prepare the updated Java Lambda application for deployment with DynamoDB JSON responses and SLF4J logging support.
+
+**Implementation**
+
+- Packaged the updated Java application as a shaded JAR.
+- Uploaded `lambda-app/target/lambda-app-1.0-SNAPSHOT.jar` to the existing private S3 artifact bucket.
+- Retrieved the new S3 object version identifier.
+- Updated `S3ObjectVersion` in `infrastructure/three-tier.yaml`.
+
+**Artifact Details**
+
+- S3 bucket: `atu-l00213593-lambda-897068845214-eu-west-1-an`
+- S3 key: `lambda/student-message-board-1.0-SNAPSHOT.jar`
+- S3 object version: `Foe4RvfA9y16BqMkcsP6zpSsDyKqiFU1`
+
+**Design Decision**
+I used the existing versioned S3 artifact bucket to deploy the updated Java application without changing the Lambda
+function configuration or its API Gateway integration.
+The explicit S3 object version allows CloudFormation to identify the exact deployment package.
+
+**Validation**
+The S3 upload completed successfully and returned a new object version identifier.
+CloudFormation template validation passed.
+
+**Next Step**
+Validate the CloudFormation template and deploy the updated Java Lambda function.
+
+#### Step 6 — Deploy and Verify DynamoDB JSON Response
+
+**Objective**
+Deploy the updated Java Lambda function and verify that messages retrieved from DynamoDB are returned as JSON through
+API Gateway.
+
+**Deployment**
+I deployed the updated `infrastructure/three-tier.yaml` template using AWS CloudFormation.
+
+- Stack: `ATU-Three-Tier`
+- Region: `eu-west-1`
+- Runtime: Java 21
+- Route: `GET /message`
+
+**Result:** CloudFormation deployment completed successfully.
+
+**HTTP Testing**
+I tested the deployed endpoint:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"count":0,"messages":[]}
+```
+
+The response was generated from the DynamoDB scan result and serialized into JSON using Jackson.
+
+**CloudWatch Verification**
+
+I inspected the Lambda execution logs:
+
+```powershell
+aws logs tail /aws/lambda/ATU-Three-Tier-MessageLambdaFunction-gAofVDXQaSuj `
+  --since 10m `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Actual Log Output**
+
+```text
+Message Board request received
+DynamoDB scan completed. Items returned: 0
+```
+
+The Lambda function completed successfully without DynamoDB access errors.
+
+**SLF4J Verification**
+
+The previous `StaticLoggerBinder` warning did not appear during the new Lambda execution.
+
+The added SLF4J logging implementation resolved the previously observed warning.
+
+**Testing and Validation**
+
+- [x] CloudFormation deployment completed successfully.
+- [x] API Gateway returned `HTTP 200 OK`.
+- [x] Java Lambda executed successfully.
+- [x] DynamoDB `Scan` completed successfully.
+- [x] JSON response contained `messages` and `count`.
+- [x] Empty DynamoDB results were returned as an empty JSON array.
+- [x] CloudWatch Logs confirmed successful database access.
+- [x] Previous SLF4J warning was absent.
+
+**Limitations**
+The DynamoDB table currently returns no messages, so the mapping of stored message attributes has not yet been tested
+with actual records.
+The API supports reading messages but does not yet provide an HTTP endpoint for creating messages.
+
+**Next Step**
+Implement message creation using DynamoDB `PutItem` and expose a `POST /message` endpoint through API Gateway.
+
+#### Step 7 — Implement Message Creation and Refactor Java Lambda
+
+**Objective**
+Extend the Java Lambda application to support message creation in DynamoDB and improve code maintainability by
+separating responsibilities into individual classes.
+
+**Implementation**
+
+- Implemented HTTP method handling for `GET` and `POST`.
+- Preserved the existing DynamoDB read functionality.
+- Added message creation using DynamoDB `PutItem` [[49]](#ref-49).
+- Added input validation for message content.
+- Limited message length to 500 characters.
+- Generated unique message identifiers using UUID.
+- Added UTC timestamps using `Instant.now()`.
+- Added JSON responses with appropriate HTTP status codes.
+- Refactored the Java application into six separate classes.
+
+**Java Class Structure**
+
+| Class                    | Responsibility                                                                                             |
+|--------------------------|------------------------------------------------------------------------------------------------------------|
+| `MessageHandler.java`    | Handles incoming HTTP requests and routes GET and POST operations.                                         |
+| `MessageService.java`    | Implements message validation and business logic.                                                          |
+| `MessageRepository.java` | Performs DynamoDB read and write operations.                                                               |
+| `Message.java`           | Represents message data.                                                                                   |
+| `ApiResponse.java`       | Builds HTTP responses and serializes data to JSON.                                                         |
+| `AppConstants.java`      | Stores HTTP methods, status codes, JSON fields, DynamoDB attributes, error messages and logging constants. |
+
+**Design Decisions**
+I decided to implement message creation and refactor the Java Lambda application in the same development stage.
+
+The original `MessageHandler.java` contained HTTP handling, business logic, input validation and DynamoDB operations in
+one class.
+
+I separated these responsibilities to follow the Single Responsibility Principle and make the application easier to
+understand, test and maintain.
+
+I also extracted reusable string literals and HTTP status codes into `AppConstants.java` to reduce duplication and avoid
+hardcoded values throughout the application.
+
+The existing Maven multi-module structure was preserved. The refactoring also prepares the application for possible code
+reuse with the planned Spring Boot application on EC2.
+
+**Validation**
+The updated application is ready for Maven compilation and packaging.
+
+```powershell
+mvn clean package
+```
+
+The refactored Java Lambda has not yet been deployed or tested in AWS.
+The existing `GET /message` endpoint continues to use the previously deployed Lambda version.
+The new `POST /message` route has not yet been configured in API Gateway.
+
+**Next Step**
+Build and package the refactored Java Lambda application, upload the new JAR version to Amazon S3 and deploy it through
+CloudFormation.
+Verify that the existing GET endpoint still works before enabling POST requests.
+
+#### Step 8 — Upload Refactored Java Lambda Artifact
+
+**Objective**
+Prepare the refactored Java Lambda application for deployment through AWS CloudFormation.
+
+**Implementation**
+
+- Built the updated Java application using Maven.
+- Packaged the six Java classes and their dependencies into a shaded JAR.
+- Uploaded the JAR to the private S3 artifact bucket.
+- Retrieved the new S3 object version identifier.
+- Updated `S3ObjectVersion` in `infrastructure/three-tier.yaml`.
+
+**Design Decision**
+I decided to continue using the existing versioned S3 artifact bucket.
+This allows the refactored application to be deployed without recreating the Lambda function, DynamoDB table or API
+Gateway.
+
+The explicit S3 object version identifies the exact deployment package.
+
+**Validation**
+The updated Java application was packaged successfully using Maven.
+The new artifact was uploaded to Amazon S3.
+CloudFormation template validation passed
+
+**Next Step**
+
+Validate the updated CloudFormation template, deploy the refactored Lambda function and verify that the existing GET
+endpoint continues to work.
+
+#### Step 9 — Verify Refactored Java Lambda Deployment
+
+**Objective**
+Verify that the refactored Java Lambda application continues to work after deployment.
+
+**Deployment**
+The updated CloudFormation template was deployed successfully to the existing `ATU-Three-Tier` stack.
+The Java application now uses separate classes for HTTP handling, business logic, DynamoDB access, message modelling,
+API responses and shared constants.
+
+**HTTP Testing**
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"count":0,"messages":[]}
+```
+
+**Validation**
+
+- [x] CloudFormation deployment completed successfully.
+- [x] Existing `GET /message` endpoint returned HTTP 200.
+- [x] JSON response structure remained unchanged.
+- [x] Refactored Lambda handled the HTTP request.
+- [x] CloudWatch execution completion and database logging verification pending.
+
+**Conclusion**
+The refactored Java Lambda application preserved the existing HTTP API behaviour.
+
+**Next Step**
+Configure API Gateway to accept `POST /message` and verify message creation using DynamoDB `PutItem`.
+
+#### Step 10 — Define POST Message Route
+
+**Objective**
+Add an HTTP POST route to the existing API Gateway configuration for creating messages in DynamoDB.
+
+**Implementation**
+
+- Added `MessagePostRoute` to `infrastructure/three-tier.yaml`.
+- Used `AWS::ApiGatewayV2::Route` [[50]](#ref-50).
+- Configured the route key `POST /message`.
+- Reused the existing Quick Create Lambda integration `zv9cjno`.
+- Preserved the existing `GET /message` route and default deployment stage.
+
+**Design Decision**
+I decided to reuse the existing Lambda integration instead of creating another integration or API Gateway stage.
+The integration identifier was obtained using the AWS CLI.
+Because the integration was automatically created by Quick Create, its identifier is currently referenced explicitly in
+the CloudFormation template.
+This creates a dependency on the existing API configuration and would need to be reviewed if the API were
+recreated [[47]](#ref-47).
+
+**Security Consideration**
+The POST route is defined without an API Gateway authorizer. Access controls and request throttling require review
+before enabling public message creation.
+The existing Lambda invocation permission is restricted to GET requests and must be extended to support POST.
+
+**Validation**
+CloudFormation template validation passed.
+The POST route has not yet been deployed or tested.
+
+**Next Step**
+Configure Lambda invocation permission for the POST route before deploying the updated CloudFormation stack.
+
+#### Step 11 — Configure Lambda Invocation Permission for POST
+
+**Objective**
+Allow the existing HTTP API to invoke the Java Lambda function through the new `POST /message` route.
+
+**Implementation**
+
+- Added `MessagePostLambdaPermission` to `infrastructure/three-tier.yaml`.
+- Used `AWS::Lambda::Permission` to grant `lambda:InvokeFunction`.
+- Configured `apigateway.amazonaws.com` as the service principal.
+- Restricted `SourceArn` to the existing HTTP API and the `POST /message` route.
+- Preserved the existing Lambda invocation permission for `GET /message`.
+
+**Design Decision**
+I decided to define a separate Lambda invocation permission for POST instead of broadening the existing GET permission.
+This keeps the permissions explicit and allows each HTTP route to be reviewed independently.
+CloudFormation uses the generated API identifier in `SourceArn`, avoiding hardcoded API identifiers [[48]](#ref-48).
+
+**Security Consideration**
+The POST route is configured without authentication and would allow public message creation after deployment.
+Before enabling public write access, request throttling and appropriate access controls should be reviewed to reduce the
+risk of abuse and unexpected DynamoDB costs.
+
+**Validation**
+CloudFormation template validation passed.
+The POST route and its invocation permission have not yet been deployed or tested.
+
+**Next Step**
+Review the security of the public POST endpoint before deployment, then deploy and verify message creation in DynamoDB.
+
+#### Step 12 — Secure POST Route with IAM Authorization
+
+**Objective**
+Protect the message creation endpoint from unauthenticated public requests.
+
+**Implementation**
+
+- Updated `MessagePostRoute` in `infrastructure/three-tier.yaml`.
+- Changed `AuthorizationType` from `NONE` to `AWS_IAM`.
+- Preserved the existing Lambda integration.
+- Kept `GET /message` publicly accessible.
+
+**Design Decision**
+I selected AWS IAM authorization for the POST route because message creation modifies data stored in DynamoDB.
+Clients must sign POST requests using AWS Signature Version 4 and have the `execute-api:Invoke` permission for the
+route [[51]](#ref-51).
+This prevents unauthenticated users from submitting messages.
+The Lambda execution role remains responsible for DynamoDB access, while API Gateway controls who may invoke the POST
+route.
+
+**Limitations**
+IAM authorization is suitable for controlled testing with AWS credentials, but it is not a complete authentication
+solution for a public website.
+
+Additional request throttling and a suitable user authentication mechanism may be required if the application is opened
+to external users.
+
+**Validation**
+CloudFormation template validation passed.
+The protected POST route has not yet been deployed or tested.
+
+**Next Step**
+Validate the template, review the proposed CloudFormation changes and deploy the protected POST route.
+
+#### Step 13 — Review and Deploy the Protected POST Route
+
+**Objective**
+Review the proposed infrastructure changes before enabling the IAM-protected `POST /message` route in the existing HTTP
+API.
+
+**Implementation**
+
+- Validated `infrastructure/three-tier.yaml` with AWS CloudFormation.
+- Created a CloudFormation Change Set named `add-protected-post-message` for the `ATU-Three-Tier` stack.
+- Inspected the proposed resource changes before execution, following the AWS Change Set workflow [[54]](#ref-54).
+- Confirmed that the Change Set added **two** resources: `MessagePostRoute` and `MessagePostLambdaPermission`, without
+  replacing the existing API.
+- Executed the Change Set and confirmed the stack reached `UPDATE_COMPLETE`.
+- Sent an anonymous POST request to the `/message` endpoint to verify the configured IAM access
+  restriction [[51]](#ref-51).
+- Rechecked that the public GET endpoint continued to work.
+
+**Actual Results**
+
+| Check                           | Result                                            |
+|---------------------------------|---------------------------------------------------|
+| Change Set                      | `CREATE_COMPLETE`, then `AVAILABLE` for execution |
+| Preview                         | Two resource additions; no replacements           |
+| Stack update                    | `UPDATE_COMPLETE`                                 |
+| Unauthenticated `POST /message` | `HTTP 403 Forbidden`                              |
+| Existing `GET /message`         | `HTTP 200 OK`                                     |
+
+**Design Decision**
+I used a Change Set to review the impact of the new route and Lambda invocation permission before updating the deployed
+stack. The POST route retains `AuthorizationType: AWS_IAM`; anonymous users cannot create messages. GET remains public.
+A successful Change Set preview does not guarantee successful deployment, so I checked the resulting stack status and
+HTTP responses [[54]](#ref-54).
+
+**Limitations**
+The route reuses the integration identifier `zv9cjno`, originally created by Quick Create. This is a known hardcoded
+dependency on the existing API and must be reconsidered if that API is recreated. At this stage the protected POST route
+was not yet tested with an authorised client; the client policy and signed POST test follow in Steps 14 and 15.
+
+**Next Step**
+Define a scoped IAM permission allowing the lab test client to invoke only the protected `POST /message` route.
+
+#### Step 14 — Define IAM Permission for Authenticated POST Requests
+
+**Objective**
+Allow the existing development IAM user to invoke the protected `POST /message` endpoint without enabling anonymous
+write access.
+
+**Implementation**
+
+- Added `MessagePostClientPolicy` using `AWS::IAM::Policy` [[52]](#ref-52).
+- Attached the inline policy to the existing `atu-devops-lab` IAM user.
+- Granted only `execute-api:Invoke`.
+- Restricted the permission to `POST /message` on the project HTTP API.
+- Preserved `AWS_IAM` authorization on the POST route.
+
+**Design Decision**
+I decided to manage the API client permission through CloudFormation rather than manually updating IAM permissions in
+the AWS Console.
+The policy allows authenticated testing of message creation without granting direct DynamoDB access.
+
+**Validation**
+CloudFormation template validation passed.
+The authenticated POST request has not yet been tested.
+The policy ARN restricts invocation to the specific API, method and path [[53]](#ref-53).
+
+**Next Step**
+Review the CloudFormation changes, deploy the IAM policy and test an AWS SigV4-signed POST request.
+
+#### Step 15 — Deploy and Verify Authenticated Message Creation
+
+**Objective**
+Deploy the IAM-protected POST endpoint and verify that messages can be created and retrieved through API Gateway, Java
+Lambda and DynamoDB.
+
+**Implementation**
+
+- Added `MessagePostClientPolicy` using `AWS::IAM::Policy` [[52]](#ref-52).
+- Granted `execute-api:Invoke` to the existing lab IAM user for `POST /message`.
+- Preserved `AWS_IAM` authorization on the POST route.
+- Deployed the updated infrastructure using AWS CloudFormation.
+- Tested message creation using an AWS Signature Version 4 signed HTTP request.
+- Retrieved the created message using the existing GET endpoint.
+
+**Deployment and Troubleshooting**
+The initial deployment failed because the IAM user `atu-devops-lab` lacked the `iam:GetUserPolicy` permission required
+during creation of the CloudFormation-managed inline policy.
+
+CloudFormation rolled back the failed update.
+
+I temporarily extended the deployment user's IAM permissions to support management of its inline policy and repeated the
+deployment.
+
+The protected POST route had already been reviewed and deployed through a separate Change Set in Step
+13 [[54]](#ref-54). The IAM client policy was subsequently deployed using `aws cloudformation deploy` with
+`CAPABILITY_NAMED_IAM`.
+
+**Result:** CloudFormation deployment completed successfully.
+
+**Security Testing**
+I sent an unauthenticated POST request.
+
+**Actual Result:** `HTTP 403 Forbidden`.
+
+I then sent an authenticated POST request using temporary credentials from the `atu-lab` profile and AWS Signature
+Version 4. The AWS CLI supports credential export for tools that need temporary credentials [[55]](#ref-55).
+
+**Actual Result:**
+
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+
+```json
+{
+  "id": "68cc1fcd-a965-45df-a124-05c3c6812fe8",
+  "message": "My first DynamoDB message",
+  "createdAt": "2026-10-23T21:51:07.150955961Z"
+}
+```
+
+**GET Verification**
+
+I retrieved the messages using:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result:**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+
+```json
+{
+  "count": 1,
+  "messages": [
+    {
+      "id": "68cc1fcd-a965-45df-a124-05c3c6812fe8",
+      "message": "My first DynamoDB message",
+      "createdAt": "2026-10-23T21:51:07.150955961Z"
+    }
+  ]
+}
+```
+
+**Design Decisions**
+I selected AWS IAM authorization to protect message creation while keeping message retrieval publicly accessible.
+The client receives permission to invoke only the POST route, while the Lambda execution role provides the required
+DynamoDB access.
+The client does not need direct DynamoDB permissions.
+
+**Testing and Validation**
+
+- [x] CloudFormation deployment completed successfully.
+- [x] Anonymous POST returned HTTP 403.
+- [x] SigV4-signed POST returned HTTP 201.
+- [x] DynamoDB message creation succeeded.
+- [x] GET returned HTTP 200.
+- [x] The created message was retrieved with the correct ID, text and timestamp.
+- [x] Existing GET functionality remained operational.
+
+**Security Limitations**
+The deployment IAM user temporarily received permissions to manage its own inline IAM policies. This is not suitable as
+a permanent least-privilege configuration because it may allow privilege escalation.
+These bootstrap permissions must be removed after testing and replaced with an appropriately controlled deployment role.
+The POST endpoint requires AWS credentials and is not yet suitable for direct use by anonymous visitors to the static
+website.
+
+**Next Step**
+Review and remove temporary IAM bootstrap permissions, then prepare the next application integration stage.
+
+### Iteration 16 — Web Tier Integration
+
+#### Step 1 — Connect the Static Website to API Gateway
+
+**Objective**
+
+Connect the CloudFront-hosted static website to the deployed Java Lambda and DynamoDB application.
+
+**Implementation**
+
+- Configured API Gateway CORS to allow requests from the CloudFront website origin.
+- Added the Student Message Board section inside the HTML `<main>` element.
+- Created `web/js/message.js` to separate JavaScript from HTML.
+- Used the Fetch API to retrieve messages from `GET /message`.
+- Displayed the returned DynamoDB messages in the browser using DOM elements and `textContent`.
+- Uploaded `index.html` and `js/message.js` to the private S3 website bucket.
+
+**Troubleshooting**
+
+The initial JavaScript request failed because the file was not available at the expected S3 object key.
+
+I also encountered IAM permission errors when attempting to list S3 objects and create a CloudFront invalidation.
+Neither operation was required to complete the integration.
+
+After successfully uploading `js/message.js` under the correct key, CloudFront returned HTTP 200.
+
+**Validation**
+
+- CloudFront JavaScript request: `HTTP 200 OK`.
+- Website successfully loaded JavaScript.
+- API request completed successfully.
+- Website displayed `1 message(s) loaded.`
+- Retrieved message: `My first DynamoDB message`.
+
+**Result: Passed**
+
+The Web Tier, Application Tier and Database Tier are now integrated and working together.
+AWS documentation explains how CORS is configured for HTTP APIs in Amazon API Gateway [[56]](#ref-56).
+
+**Next Step**
+
+Complete final project documentation, verify the deployed infrastructure and prepare the repository for submission.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -1493,7 +2218,9 @@ Decisions are supported by relevant AWS documentation cited in the References se
 Each development stage is tested and documented before being merged into the main branch.
 
 Test results and issues are documented in the relevant iteration, including CloudFormation validation,
-stack status, website delivery over HTTPS and the direct S3 access denial.
+stack status, website delivery over HTTPS, direct S3 access denial, and HTTP API/DynamoDB integration tests.
+The most recent end-to-end tests returned HTTP 403 for anonymous POST, HTTP 201 for a signed POST, and HTTP 200 for GET
+returning the newly created DynamoDB record.
 AWS recommends validating CloudFormation templates before deploying infrastructure [[2]](#ref-2).
 
 ## 8. References
@@ -1762,3 +2489,45 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 **[48]** Amazon Web Services (n.d.) *AWS::Lambda::Permission*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lambda-permission.html
 (Accessed: 23 October 2026).
+
+<a id="ref-49"></a>
+**[49]** Amazon Web Services (n.d.) *DynamoDB examples using SDK for Java 2.x*.
+Available at: https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/java_dynamodb_code_examples.html
+(Accessed: 23 October 2026).
+
+<a id="ref-50"></a>
+**[50]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Route*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-route.html
+(Accessed: 23 October 2026).
+
+<a id="ref-51"></a>
+**[51]** Amazon Web Services (n.d.) *Control access to HTTP APIs with IAM authorization in API Gateway*.
+Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-access-control-iam.html
+(Accessed: 23 October 2026).
+
+<a id="ref-52"></a>
+**[52]** Amazon Web Services (n.d.) *AWS::IAM::Policy*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-policy.html
+(Accessed: 23 October 2026).
+
+<a id="ref-53"></a>
+**[53]** Amazon Web Services (n.d.) *API Gateway Amazon Resource Name (ARN) reference*.
+Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/arn-format-reference.html
+(Accessed: 23 October 2026).
+
+<a id="ref-54"></a>
+**[54]** Amazon Web Services (n.d.) *Update CloudFormation stacks using change sets*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html
+(Accessed: 23 October 2026).
+
+<a id="ref-55"></a>
+**[55]** Amazon Web Services (n.d.) *configure export-credentials — AWS CLI Command Reference*.
+Available at: https://docs.aws.amazon.com/cli/latest/reference/configure/export-credentials.html
+(Accessed: 23 October 2026).
+
+<a id="ref-56"></a>
+**[56]** Amazon Web Services (n.d.) *Configure CORS for HTTP APIs in API Gateway*.
+Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-cors.html
+(Accessed: 23 October 2026).
+
