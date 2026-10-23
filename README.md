@@ -1977,6 +1977,32 @@ The protected POST route has not yet been deployed or tested.
 **Next Step**
 Validate the template, review the proposed CloudFormation changes and deploy the protected POST route.
 
+#### Step 14 — Define IAM Permission for Authenticated POST Requests
+
+**Objective**
+Allow the existing development IAM user to invoke the protected `POST /message` endpoint without enabling anonymous
+write access.
+
+**Implementation**
+
+- Added `MessagePostClientPolicy` using `AWS::IAM::Policy`.
+- Attached the inline policy to the existing `atu-devops-lab` IAM user.
+- Granted only `execute-api:Invoke`.
+- Restricted the permission to `POST /message` on the project HTTP API.
+- Preserved `AWS_IAM` authorization on the POST route.
+
+**Design Decision**
+I decided to manage the API client permission through CloudFormation rather than manually updating IAM permissions in
+the AWS Console.
+The policy allows authenticated testing of message creation without granting direct DynamoDB access.
+
+**Validation**
+CloudFormation template validation passed.
+The authenticated POST request has not yet been tested.
+
+**Next Step**
+Review the CloudFormation changes, deploy the IAM policy and test an AWS SigV4-signed POST request.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
