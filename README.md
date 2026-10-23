@@ -1913,6 +1913,36 @@ The POST route has not yet been deployed or tested.
 **Next Step**
 Configure Lambda invocation permission for the POST route before deploying the updated CloudFormation stack.
 
+#### Step 11 — Configure Lambda Invocation Permission for POST
+
+**Objective**
+Allow the existing HTTP API to invoke the Java Lambda function through the new `POST /message` route.
+
+**Implementation**
+
+- Added `MessagePostLambdaPermission` to `infrastructure/three-tier.yaml`.
+- Used `AWS::Lambda::Permission` to grant `lambda:InvokeFunction`.
+- Configured `apigateway.amazonaws.com` as the service principal.
+- Restricted `SourceArn` to the existing HTTP API and the `POST /message` route.
+- Preserved the existing Lambda invocation permission for `GET /message`.
+
+**Design Decision**
+I decided to define a separate Lambda invocation permission for POST instead of broadening the existing GET permission.
+This keeps the permissions explicit and allows each HTTP route to be reviewed independently.
+CloudFormation uses the generated API identifier in `SourceArn`, avoiding hardcoded API identifiers [[48]](#ref-48).
+
+**Security Consideration**
+The POST route is configured without authentication and would allow public message creation after deployment.
+Before enabling public write access, request throttling and appropriate access controls should be reviewed to reduce the
+risk of abuse and unexpected DynamoDB costs.
+
+**Validation**
+CloudFormation template validation passed.
+The POST route and its invocation permission have not yet been deployed or tested.
+
+**Next Step**
+Review the security of the public POST endpoint before deployment, then deploy and verify message creation in DynamoDB.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
