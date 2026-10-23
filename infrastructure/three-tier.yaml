@@ -96,7 +96,7 @@ Resources:
     Properties:
       ApiId: !Ref MessageHttpApi
       RouteKey: 'POST /message'
-      AuthorizationType: NONE
+      AuthorizationType: AWS_IAM
       Target: 'integrations/zv9cjno'
 
   # Allow the HTTP API to invoke the Java Lambda function

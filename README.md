@@ -1943,6 +1943,40 @@ The POST route and its invocation permission have not yet been deployed or teste
 **Next Step**
 Review the security of the public POST endpoint before deployment, then deploy and verify message creation in DynamoDB.
 
+#### Step 12 — Secure POST Route with IAM Authorization
+
+**Objective**
+Protect the message creation endpoint from unauthenticated public requests.
+
+**Implementation**
+
+- Updated `MessagePostRoute` in `infrastructure/three-tier.yaml`.
+- Changed `AuthorizationType` from `NONE` to `AWS_IAM`.
+- Preserved the existing Lambda integration.
+- Kept `GET /message` publicly accessible.
+
+**Design Decision**
+I selected AWS IAM authorization for the POST route because message creation modifies data stored in DynamoDB.
+Clients must sign POST requests using AWS Signature Version 4 and have the `execute-api:Invoke` permission for the
+route.
+This prevents unauthenticated users from submitting messages.
+The Lambda execution role remains responsible for DynamoDB access, while API Gateway controls who may invoke the POST
+route.
+
+**Limitations**
+IAM authorization is suitable for controlled testing with AWS credentials, but it is not a complete authentication
+solution for a public website.
+
+Additional request throttling and a suitable user authentication mechanism may be required if the application is opened
+to external users.
+
+**Validation**
+CloudFormation template validation passed.
+The protected POST route has not yet been deployed or tested.
+
+**Next Step**
+Validate the template, review the proposed CloudFormation changes and deploy the protected POST route.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
