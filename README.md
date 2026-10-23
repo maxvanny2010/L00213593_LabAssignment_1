@@ -1811,6 +1811,36 @@ Build and package the refactored Java Lambda application, upload the new JAR ver
 CloudFormation.
 Verify that the existing GET endpoint still works before enabling POST requests.
 
+#### Step 8 — Upload Refactored Java Lambda Artifact
+
+**Objective**
+Prepare the refactored Java Lambda application for deployment through AWS CloudFormation.
+
+**Implementation**
+
+- Built the updated Java application using Maven.
+- Packaged the six Java classes and their dependencies into a shaded JAR.
+- Uploaded the JAR to the private S3 artifact bucket.
+- Retrieved the new S3 object version identifier.
+- Updated `S3ObjectVersion` in `infrastructure/three-tier.yaml`.
+
+**Design Decision**
+I decided to continue using the existing versioned S3 artifact bucket.
+This allows the refactored application to be deployed without recreating the Lambda function, DynamoDB table or API
+Gateway.
+
+The explicit S3 object version identifies the exact deployment package.
+
+**Validation**
+The updated Java application was packaged successfully using Maven.
+The new artifact was uploaded to Amazon S3.
+CloudFormation template validation passed
+
+**Next Step**
+
+Validate the updated CloudFormation template, deploy the refactored Lambda function and verify that the existing GET
+endpoint continues to work.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.

@@ -69,7 +69,7 @@ Resources:
       Code:
         S3Bucket: atu-l00213593-lambda-897068845214-eu-west-1-an
         S3Key: lambda/student-message-board-1.0-SNAPSHOT.jar
-        S3ObjectVersion: Foe4RvfA9y16BqMkcsP6zpSsDyKqiFU1
+        S3ObjectVersion: DJt_ezLSSF0DXpOBLYbuGSuuf8c1bAIy
 
       MemorySize: 512
       Timeout: 15
