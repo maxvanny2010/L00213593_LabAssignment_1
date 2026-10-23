@@ -89,6 +89,15 @@ Resources:
       Target: !Sub
         - 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
         - LambdaArn: !GetAtt MessageLambdaFunction.Arn
+      CorsConfiguration:
+        AllowOrigins:
+          - 'https://d2caxeghfi5itf.cloudfront.net'
+        AllowMethods:
+          - GET
+        AllowHeaders:
+          - content-type
+        MaxAge: 300
+
 
   # Reuse the Quick Create Lambda integration for POST requests
   MessagePostRoute:

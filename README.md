@@ -2154,6 +2154,49 @@ website.
 **Next Step**
 Review and remove temporary IAM bootstrap permissions, then prepare the next application integration stage.
 
+### Iteration 16 — Web Tier Integration
+
+#### Step 1 — Connect the Static Website to API Gateway
+
+**Objective**
+
+Connect the CloudFront-hosted static website to the deployed Java Lambda and DynamoDB application.
+
+**Implementation**
+
+- Configured API Gateway CORS to allow requests from the CloudFront website origin.
+- Added the Student Message Board section inside the HTML `<main>` element.
+- Created `web/js/message.js` to separate JavaScript from HTML.
+- Used the Fetch API to retrieve messages from `GET /message`.
+- Displayed the returned DynamoDB messages in the browser using DOM elements and `textContent`.
+- Uploaded `index.html` and `js/message.js` to the private S3 website bucket.
+
+**Troubleshooting**
+
+The initial JavaScript request failed because the file was not available at the expected S3 object key.
+
+I also encountered IAM permission errors when attempting to list S3 objects and create a CloudFront invalidation.
+Neither operation was required to complete the integration.
+
+After successfully uploading `js/message.js` under the correct key, CloudFront returned HTTP 200.
+
+**Validation**
+
+- CloudFront JavaScript request: `HTTP 200 OK`.
+- Website successfully loaded JavaScript.
+- API request completed successfully.
+- Website displayed `1 message(s) loaded.`
+- Retrieved message: `My first DynamoDB message`.
+
+**Result: Passed**
+
+The Web Tier, Application Tier and Database Tier are now integrated and working together.
+AWS documentation explains how CORS is configured for HTTP APIs in Amazon API Gateway [[56]](#ref-56).
+
+**Next Step**
+
+Complete final project documentation, verify the deployed infrastructure and prepare the repository for submission.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
@@ -2482,3 +2525,9 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/usi
 **[55]** Amazon Web Services (n.d.) *configure export-credentials — AWS CLI Command Reference*.
 Available at: https://docs.aws.amazon.com/cli/latest/reference/configure/export-credentials.html
 (Accessed: 23 October 2026).
+
+<a id="ref-56"></a>
+**[56]** Amazon Web Services (n.d.) *Configure CORS for HTTP APIs in API Gateway*.
+Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-cors.html
+(Accessed: 23 October 2026).
+
