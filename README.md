@@ -1617,6 +1617,31 @@ executed.
 **Next Step**
 Update the Java Lambda handler to return messages retrieved from DynamoDB as JSON.
 
+#### Step 4 — Return DynamoDB Messages as JSON
+
+**Objective**
+Update the Java Lambda function to return messages retrieved from DynamoDB through the existing HTTP API.
+
+**Implementation**
+
+- Updated `MessageHandler.java` to convert DynamoDB items into Java objects.
+- Added Jackson Databind for JSON serialization.
+- Mapped the `id`, `message` and `createdAt` attributes.
+- Updated the Lambda response to contain `messages` and `count`.
+- Limited the DynamoDB scan to 20 evaluated items per request.
+
+**Design Decision**
+I decided to return structured JSON instead of a static welcome message.
+Jackson handles JSON serialization and escaping, avoiding manual construction of JSON strings.
+The existing `GET /message` route will be reused without introducing additional API Gateway resources.
+
+**Validation**
+Maven compilation and packaging passed using `mvn clean package`.
+The updated handler has not yet been deployed or tested through API Gateway.
+
+**Next Step**
+Build the Java Lambda package, upload a new version to S3 and deploy it through CloudFormation.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
