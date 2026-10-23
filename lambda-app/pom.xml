@@ -40,6 +40,11 @@
             <version>2.0.13</version>
         </dependency>
 
+        <dependency>
+            <groupId>ie.atu.lab</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
     </dependencies>
 
