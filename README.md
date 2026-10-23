@@ -1532,8 +1532,90 @@ This makes the deployment reproducible and allows CloudFormation to identify the
 The S3 upload completed successfully and AWS returned an object version identifier.
 CloudFormation template validation passed.
 
+#### Step 3 — Deploy and Verify DynamoDB Read Access
+
+**Objective**
+Deploy the updated Java Lambda function and verify that the Application Tier can read data from DynamoDB.
+
+**Deployment**
+I deployed the updated `infrastructure/three-tier.yaml` template to the existing `ATU-Three-Tier` CloudFormation stack.
+The deployment used the versioned Java Lambda JAR stored in Amazon S3.
+
+**Result:** CloudFormation deployment completed successfully.
+
+**HTTP Testing**
+
+I tested the existing API Gateway endpoint:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"message":"Hello from Java Lambda!"}
+```
+
+**DynamoDB Verification**
+
+I inspected the Java Lambda execution logs using CloudWatch:
+
+```powershell
+aws logs tail /aws/lambda/ATU-Three-Tier-MessageLambdaFunction-gAofVDXQaSuj `
+  --since 30m `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Actual CloudWatch Result**
+
+```text
+Message Board request received
+DynamoDB scan completed. Items returned: 0
+```
+
+The DynamoDB `Scan` operation completed successfully and returned zero items.
+
+**IAM Troubleshooting**
+
+The first attempt to read CloudWatch Logs failed with `AccessDeniedException` because the IAM user `atu-devops-lab` did
+not have `logs:FilterLogEvents` permission.
+
+I updated the existing customer-managed policy `ATU-CloudFormation-Lab-Policy` to allow `logs:FilterLogEvents` for the
+specific Java Lambda log group.
+
+After saving the policy, the log retrieval succeeded.
+
+**Logging Warning**
+CloudWatch reported an SLF4J warning because no logging provider was available.
+This did not prevent the DynamoDB request from completing. The application's messages were successfully recorded using
+the Lambda `Context` logger.
+
+**Design Decision**
+I verified the DynamoDB integration through CloudWatch Logs rather than relying only on the HTTP response.
+The API still returns a static welcome message, so an HTTP 200 response alone cannot confirm that a database request was
+executed.
+
+**Validation**
+
+- CloudFormation deployment: **Passed**.
+- API Gateway `GET /message`: **Passed**.
+- Java Lambda execution: **Passed**.
+- DynamoDB `Scan`: **Passed**.
+- CloudWatch Logs verification: **Passed**.
+
+**Limitations**
+
+- The API currently returns a static JSON response.
+- DynamoDB records are not yet included in the HTTP response.
+- Message creation and retrieval through the API have not yet been implemented.
+
 **Next Step**
-Validate the updated CloudFormation template before deploying the Lambda function.
+Update the Java Lambda handler to return messages retrieved from DynamoDB as JSON.
 
 ## 6. Design Decisions
 
