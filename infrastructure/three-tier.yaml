@@ -86,7 +86,10 @@ Resources:
       Description: HTTP API for the ATU Student Message Board
       ProtocolType: HTTP
       RouteKey: 'GET /message'
-      Target: !GetAtt MessageLambdaFunction.Arn
+      Target: !Sub
+        - 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+        - LambdaArn: !GetAtt MessageLambdaFunction.Arn
+
 
 
 Outputs:

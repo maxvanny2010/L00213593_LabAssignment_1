@@ -1185,6 +1185,7 @@ CloudFormation stack.
 Define an HTTP API to expose the existing Java Lambda application through HTTPS.
 
 **Implementation**
+
 - Added `MessageHttpApi` to `infrastructure/three-tier.yaml`.
 - Used the `AWS::ApiGatewayV2::Api` resource.
 - Configured `ProtocolType: HTTP`.
@@ -1219,6 +1220,9 @@ The HTTP API is defined in the template but has not yet been deployed or tested.
 
 **Next Step**
 Configure permission for API Gateway to invoke the Java Lambda function.
+
+The Lambda integration uses the API Gateway Lambda invocation URI generated with `!Sub` and the Lambda function ARN.
+This follows the CloudFormation Quick Create example [[47]](#ref-47).
 
 ## 6. Design Decisions
 
@@ -1500,7 +1504,6 @@ Available at: https://docs.aws.amazon.com/service-authorization/latest/reference
 **[46]** Amazon Web Services (n.d.) *invoke — AWS CLI Command Reference*.
 Available at: https://docs.aws.amazon.com/cli/latest/reference/lambda/invoke.html
 (Accessed: 23 October 2026).
-
 
 <a id="ref-47"></a>
 **[47]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Api*.
