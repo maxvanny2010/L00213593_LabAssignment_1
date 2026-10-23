@@ -2223,6 +2223,24 @@ The most recent end-to-end tests returned HTTP 403 for anonymous POST, HTTP 201 
 returning the newly created DynamoDB record.
 AWS recommends validating CloudFormation templates before deploying infrastructure [[2]](#ref-2).
 
+### Part A(b) — Conclusion
+
+The objective of Part A(b) was to design and implement a three-tier architecture using AWS services and Infrastructure as Code.
+
+I implemented the Web Tier using Amazon S3 and CloudFront, the Application Tier using Amazon API Gateway and Java Lambda, and the Database Tier using Amazon DynamoDB.
+
+AWS CloudFormation was used to define and manage the infrastructure, including the DynamoDB table, Lambda execution role, API Gateway configuration and access permissions.
+
+The application was tested successfully. The GET endpoint retrieved messages from DynamoDB, while the POST endpoint created new messages using AWS IAM authentication. I also connected the static website to the API, allowing messages to be displayed directly in the browser.
+
+During development, I encountered several IAM permission and deployment issues. Investigating CloudFormation stack events helped me understand the importance of access control, the least privilege and infrastructure validation.
+
+The final integration test confirmed that all three tiers communicate successfully.
+
+**Result:** Part A(b) has been implemented and tested successfully.
+
+The next development stage will explore an alternative Application Tier using Spring Boot on Amazon EC2, with networking and security resources defined through CloudFormation.
+
 ## 8. References
 
 <a id="ref-1"></a>
