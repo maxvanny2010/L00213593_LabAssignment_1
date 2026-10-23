@@ -1642,6 +1642,36 @@ The updated handler has not yet been deployed or tested through API Gateway.
 **Next Step**
 Build the Java Lambda package, upload a new version to S3 and deploy it through CloudFormation.
 
+#### Step 5 — Upload Updated Java Lambda Artifact
+
+**Objective**
+Prepare the updated Java Lambda application for deployment with DynamoDB JSON responses and SLF4J logging support.
+
+**Implementation**
+
+- Packaged the updated Java application as a shaded JAR.
+- Uploaded `lambda-app/target/lambda-app-1.0-SNAPSHOT.jar` to the existing private S3 artifact bucket.
+- Retrieved the new S3 object version identifier.
+- Updated `S3ObjectVersion` in `infrastructure/three-tier.yaml`.
+
+**Artifact Details**
+
+- S3 bucket: `atu-l00213593-lambda-897068845214-eu-west-1-an`
+- S3 key: `lambda/student-message-board-1.0-SNAPSHOT.jar`
+- S3 object version: `Foe4RvfA9y16BqMkcsP6zpSsDyKqiFU1`
+
+**Design Decision**
+I used the existing versioned S3 artifact bucket to deploy the updated Java application without changing the Lambda function configuration or its API Gateway integration.
+The explicit S3 object version allows CloudFormation to identify the exact deployment package.
+
+**Validation**
+The S3 upload completed successfully and returned a new object version identifier.
+CloudFormation template validation passed.
+
+**Next Step**
+Validate the CloudFormation template and deploy the updated Java Lambda function.
+
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
