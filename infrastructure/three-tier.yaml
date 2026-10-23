@@ -90,6 +90,15 @@ Resources:
         - 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
         - LambdaArn: !GetAtt MessageLambdaFunction.Arn
 
+  # Reuse the Quick Create Lambda integration for POST requests
+  MessagePostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref MessageHttpApi
+      RouteKey: 'POST /message'
+      AuthorizationType: NONE
+      Target: 'integrations/zv9cjno'
+
   # Allow the HTTP API to invoke the Java Lambda function
   MessageApiLambdaPermission:
     Type: AWS::Lambda::Permission

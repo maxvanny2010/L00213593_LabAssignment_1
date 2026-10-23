@@ -1880,6 +1880,39 @@ The refactored Java Lambda application preserved the existing HTTP API behaviour
 **Next Step**
 Configure API Gateway to accept `POST /message` and verify message creation using DynamoDB `PutItem`.
 
+#### Step 10 — Define POST Message Route
+
+**Objective**
+Add an HTTP POST route to the existing API Gateway configuration for creating messages in DynamoDB.
+
+**Implementation**
+
+- Added `MessagePostRoute` to `infrastructure/three-tier.yaml`.
+- Used `AWS::ApiGatewayV2::Route`.
+- Configured the route key `POST /message`.
+- Reused the existing Quick Create Lambda integration `zv9cjno`.
+- Preserved the existing `GET /message` route and default deployment stage.
+
+**Design Decision**
+I decided to reuse the existing Lambda integration instead of creating another integration or API Gateway stage.
+The integration identifier was obtained using the AWS CLI.
+Because the integration was automatically created by Quick Create, its identifier is currently referenced explicitly in
+the CloudFormation template.
+This creates a dependency on the existing API configuration and would need to be reviewed if the API were
+recreated [[47]](#ref-47).
+
+**Security Consideration**
+The POST route is defined without an API Gateway authorizer. Access controls and request throttling require review
+before enabling public message creation.
+The existing Lambda invocation permission is restricted to GET requests and must be extended to support POST.
+
+**Validation**
+CloudFormation template validation passed.
+The POST route has not yet been deployed or tested.
+
+**Next Step**
+Configure Lambda invocation permission for the POST route before deploying the updated CloudFormation stack.
+
 ## 6. Design Decisions
 
 The main technical decisions are recorded in the development iterations above.
