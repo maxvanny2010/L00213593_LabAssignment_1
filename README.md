@@ -1671,6 +1671,84 @@ CloudFormation template validation passed.
 **Next Step**
 Validate the CloudFormation template and deploy the updated Java Lambda function.
 
+#### Step 6 — Deploy and Verify DynamoDB JSON Response
+
+**Objective**
+Deploy the updated Java Lambda function and verify that messages retrieved from DynamoDB are returned as JSON through API Gateway.
+
+**Deployment**
+I deployed the updated `infrastructure/three-tier.yaml` template using AWS CloudFormation.
+
+- Stack: `ATU-Three-Tier`
+- Region: `eu-west-1`
+- Runtime: Java 21
+- Route: `GET /message`
+
+**Result:** CloudFormation deployment completed successfully.
+
+**HTTP Testing**
+I tested the deployed endpoint:
+
+```powershell
+curl.exe -i https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message
+```
+
+**Actual Result**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"count":0,"messages":[]}
+```
+
+The response was generated from the DynamoDB scan result and serialized into JSON using Jackson.
+
+**CloudWatch Verification**
+
+I inspected the Lambda execution logs:
+
+```powershell
+aws logs tail /aws/lambda/ATU-Three-Tier-MessageLambdaFunction-gAofVDXQaSuj `
+  --since 10m `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Actual Log Output**
+
+```text
+Message Board request received
+DynamoDB scan completed. Items returned: 0
+```
+
+The Lambda function completed successfully without DynamoDB access errors.
+
+**SLF4J Verification**
+
+The previous `StaticLoggerBinder` warning did not appear during the new Lambda execution.
+
+The added SLF4J logging implementation resolved the previously observed warning.
+
+**Testing and Validation**
+
+- [x] CloudFormation deployment completed successfully.
+- [x] API Gateway returned `HTTP 200 OK`.
+- [x] Java Lambda executed successfully.
+- [x] DynamoDB `Scan` completed successfully.
+- [x] JSON response contained `messages` and `count`.
+- [x] Empty DynamoDB results were returned as an empty JSON array.
+- [x] CloudWatch Logs confirmed successful database access.
+- [x] Previous SLF4J warning was absent.
+
+**Limitations**
+The DynamoDB table currently returns no messages, so the mapping of stored message attributes has not yet been tested with actual records.
+The API supports reading messages but does not yet provide an HTTP endpoint for creating messages.
+
+**Next Step**
+Implement message creation using DynamoDB `PutItem` and expose a `POST /message` endpoint through API Gateway.
+
+
 
 ## 6. Design Decisions
 
