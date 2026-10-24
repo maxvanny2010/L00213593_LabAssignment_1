@@ -2500,6 +2500,58 @@ AWS CloudFormation template validation and deployment have not yet been confirme
 **Next Step**
 Add automated CloudFormation validation using GitHub Actions.
 
+
+### Iteration 19 — Automated CloudFormation Validation
+
+**Objective**
+Automate CloudFormation template validation using GitHub Actions and AWS CloudFormation Linter (`cfn-lint`).
+
+**Implementation**
+
+- Created `.github/workflows/cloudformation-lint.yml`.
+- Configured the workflow for pushes to `master` and feature branches.
+- Enabled automatic validation for Pull Requests targeting `master`.
+- Configured Python 3.12 using `actions/setup-python`.
+- Added installation of `cfn-lint`.
+- Configured validation for `infrastructure/ec2/network.yaml` in the `eu-west-1` Region.
+- Restricted workflow permissions to `contents: read`.
+
+**Reference Implementation**
+I used the official GitHub `actions/setup-python` workflow example as a starting point [[64]](#ref-64).
+
+I adapted its structure to install and execute AWS CloudFormation Linter, following the official AWS documentation [[60]](#ref-60).
+
+GitHub's workflow syntax documentation was used to configure branch triggers, jobs and permissions [[63]](#ref-63).
+
+**My Modifications**
+
+- Selected Python 3.12 for the validation environment.
+- Added the installation command `python -m pip install cfn-lint`.
+- Added validation for my own EC2 network template.
+- Selected the AWS Region `eu-west-1`.
+- Configured feature branch and Pull Request triggers.
+- Applied read-only repository permissions.
+
+**Design Decision**
+
+I decided to run `cfn-lint` locally before committing and repeat the same validation automatically in GitHub Actions.
+
+This provides an independent check before merging infrastructure changes.
+
+The workflow does not require AWS credentials and does not deploy any AWS resources.
+
+**Testing and Validation**
+Local validation:
+
+`cfn-lint --regions eu-west-1 -t infrastructure/ec2/network.yaml`
+
+**Actual Result:** Exit code `0`. No errors or warnings were reported.
+GitHub Actions execution: Pending verification.
+
+**Next Step**
+Verify the GitHub Actions workflow and proceed with EC2 Security Groups.
+
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -2836,4 +2888,9 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 <a id="ref-62"></a>
 **[62]** Amazon Web Services (n.d.) *Enable internet access for a VPC using an internet gateway*.
 Available at: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html
+(Accessed: 24 October 2026).
+
+<a id="ref-64"></a>
+**[64]** GitHub (n.d.) *actions/setup-python: Set up your GitHub Actions workflow with a specific version of Python*.
+Available at: https://github.com/actions/setup-python
 (Accessed: 24 October 2026).
