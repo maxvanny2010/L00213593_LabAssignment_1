@@ -1,0 +1,35 @@
+name: CloudFormation Validation
+
+on:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  cloudformation-lint:
+    name: Validate CloudFormation Templates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cfn-lint
+        run: python -m pip install cfn-lint
+
+      - name: Validate EC2 network template
+        run: |
+          cfn-lint --regions eu-west-1 \
+            -t infrastructure/ec2/network.yaml
