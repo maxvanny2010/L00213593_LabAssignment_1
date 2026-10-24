@@ -2241,6 +2241,113 @@ The final integration test confirmed that all three tiers communicate successful
 
 The next development stage will explore an alternative Application Tier using Spring Boot on Amazon EC2, with networking and security resources defined through CloudFormation.
 
+
+### Iteration 17 — Java Application Reuse for Amazon EC2
+
+#### Step 1 — Extract Shared Java Code into a Common Maven Module
+
+**Objective**
+
+Reuse the existing Java Lambda application logic in a second implementation running on Amazon EC2, without duplicating the business logic.
+
+**Implementation**
+
+- Created the `common` Maven module.
+- Moved `Message`, `MessageService`, `MessageRepository` and `AppConstants` into `common`.
+- Added the `common` dependency to `lambda-app`.
+- Kept the Lambda-specific `MessageHandler` and `ApiResponse` classes in `lambda-app`.
+- Updated the root Maven project to support multiple modules.
+
+**Design Decision**
+
+I decided to reuse the existing application logic instead of developing a second application from scratch.
+
+The shared module contains message validation, UUID generation, timestamps and DynamoDB operations. Both applications will use this module but expose their functionality through different HTTP mechanisms.
+
+Maven supports multi-module projects and builds dependencies in the required order [[43]](#ref-43).
+
+**Validation**
+
+The `common` module compiled and packaged successfully.
+
+The shared classes are now maintained in one location.
+
+#### Step 2 — Create a Lightweight Java HTTP Server
+
+**Objective**
+
+Create a second Java application that can run on Amazon EC2 without Spring Boot or Kubernetes.
+
+**Implementation**
+
+- Created the `ec2-app` Maven module.
+- Added a dependency on the existing `common` module.
+- Configured Maven Shade Plugin to package the application as an executable JAR.
+- Implemented `MessageHttpServer` using the Java HTTP Server API.
+- Configured port `8080` as the default HTTP port.
+- Implemented `GET /health` for application health checks.
+
+**Design Decision**
+
+I selected the Java HTTP Server API because the application requires only a small number of REST endpoints.
+
+This approach avoids introducing an additional web framework and keeps the implementation focused on AWS infrastructure and deployment automation.
+
+The EC2 application will reuse the same `MessageService` and `MessageRepository` classes as the Lambda application.
+
+**Testing and Validation**
+
+Executed:
+
+```powershell
+mvn -pl ec2-app -am package -DskipTests
+```
+
+**Actual Result:** `BUILD SUCCESS`.
+
+Started the HTTP server:
+
+```powershell
+java -jar ec2-app/target/ec2-app-1.0-SNAPSHOT.jar
+```
+
+**Actual Result:**
+
+```text
+Java HTTP Server started on port 8080
+```
+
+Tested the health endpoint:
+
+```powershell
+curl.exe -i http://localhost:8080/health
+```
+
+**Actual Result:**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=UTF-8
+```
+
+```json
+{"status":"UP","service":"ec2-app"}
+```
+
+**Result: Passed**
+
+The standalone Java application compiled, started and responded successfully to an HTTP request.
+
+**Limitations**
+
+The EC2 application currently implements only the health endpoint. Message endpoints and DynamoDB integration have not yet been tested in this application.
+
+The application has been tested locally but has not yet been deployed to Amazon EC2.
+
+**Next Step**
+
+Implement `GET /message` and `POST /message` using the shared `MessageService`, then define the EC2 infrastructure with AWS CloudFormation.
+
 ## 8. References
 
 <a id="ref-1"></a>
@@ -2548,4 +2655,10 @@ Available at: https://docs.aws.amazon.com/cli/latest/reference/configure/export-
 **[56]** Amazon Web Services (n.d.) *Configure CORS for HTTP APIs in API Gateway*.
 Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-cors.html
 (Accessed: 23 October 2026).
+
+
+<a id="ref-57"></a>
+**[57]** Oracle (n.d.) *HttpServer (Java SE 21 API Specification)*.
+Available at: https://docs.oracle.com/en/java/javase/21/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html
+(Accessed: 24 October 2026).
 

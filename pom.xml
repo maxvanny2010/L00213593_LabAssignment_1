@@ -13,6 +13,7 @@
 
     <modules>
         <module>common</module>
+        <module>ec2-app</module>
         <module>lambda-app</module>
     </modules>
 
