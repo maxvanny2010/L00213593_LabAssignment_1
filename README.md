@@ -176,8 +176,7 @@ will be configured later to serve the website publicly.
 `BlockPublicAcls` prevents new public ACLs, while `IgnorePublicAcls` ignores existing
 public ACL permissions. These overlap with disabled ACLs, but are retained as an
 additional safeguard if the ownership configuration changes. `BlockPublicPolicy` blocks new public bucket policies (not
-all bucket policies),
-and `RestrictPublicBuckets` limits access when a bucket policy is public [[5]](#ref-5).
+all bucket policies),and `RestrictPublicBuckets` limits access when a bucket policy is public [[5]](#ref-5).
 
 **Bucket Naming Decision:**
 
@@ -2601,7 +2600,7 @@ Define least-privilege IAM permissions for the EC2 Java application using AWS Cl
 
 - Created `infrastructure/ec2/iam.yaml`.
 - Defined `ApplicationRole` using `AWS::IAM::Role` with a trust policy for the EC2 service.
-- Created a separate `AWS::IAM::ManagedPolicy` granting `dynamodb:Scan` and `dynamodb:PutItem` on the existing messages table only.
+- Created a separate `AWS::IAM::ManagedPolicy` granting `dynamodb:Scan` and `dynamodb:PutItem` on the existing messages  table only.
 - Attached the managed policy to the EC2 role.
 - Created `ApplicationInstanceProfile` using `AWS::IAM::InstanceProfile`.
 - Added CloudFormation Outputs for the IAM role ARN, managed policy ARN and instance profile name.
@@ -2609,15 +2608,23 @@ Define least-privilege IAM permissions for the EC2 Java application using AWS Cl
 
 **Reference Implementation**
 
-I used the official AWS CloudFormation documentation for IAM Roles [[67]](#ref-67), Instance Profiles [[68]](#ref-68), and Managed Policies [[70]](#ref-70). AWS documents the use of roles to supply credentials to EC2 applications [[69]](#ref-69).
+I used the official AWS CloudFormation documentation for IAM Roles [[67]](#ref-67), Instance Profiles [[68]](#ref-68),
+and Managed Policies [[70]](#ref-70). AWS documents the use of roles to supply credentials to EC2
+applications [[69]](#ref-69).
 
 **Design Decision**
 
-I selected an IAM Instance Profile so the Java application can use temporary credentials instead of storing AWS access keys in source code or configuration.
+I selected an IAM Instance Profile so the Java application can use temporary credentials instead of storing AWS access
+keys in source code or configuration.
 
-A separate managed policy keeps permissions independent from the role definition. The permissions are restricted to the existing DynamoDB messages table. I removed the previously proposed S3 artifact access because the EC2 deployment will use Docker images built by GitHub Actions and stored in GitHub Container Registry (GHCR), rather than the separate Lambda artifacts bucket.
+A separate managed policy keeps permissions independent of the role definition. The permissions are restricted to the
+existing DynamoDB messages table. I removed the previously proposed S3 artifact access because the EC2 deployment will
+use Docker images built by GitHub Actions and stored in GitHub Container Registry (GHCR), rather than the separate
+Lambda artifacts bucket.
 
-The planned deployment uses GitHub Actions, Docker and AWS Systems Manager (SSM). Required SSM permissions and deployment integration will be added separately when the EC2 deployment is implemented; they are not included in this IAM template yet.
+The planned deployment uses GitHub Actions, Docker and AWS Systems Manager (SSM). Required SSM permissions and
+deployment integration will be added separately when the EC2 deployment is implemented; they are not included in this
+IAM template yet.
 
 **Testing and Validation**
 
@@ -2629,6 +2636,245 @@ The planned deployment uses GitHub Actions, Docker and AWS Systems Manager (SSM)
 **Next Step**
 
 Validate the revised IAM template, review the Pull Request and prepare infrastructure deployment entirely through CloudFormation.
+
+### Iteration 22 - IAM Bootstrap and EC2 Network Deployment
+
+**Objective**
+
+Deploy the EC2 network infrastructure using AWS CloudFormation and Infrastructure as Code (IaC).
+
+Configure the required IAM permissions so that the dedicated IAM user `atu-devops-lab` 
+can deploy and manage the network without using the AWS root account for regular infrastructure operations.
+
+**Initial Problem**
+
+The first attempt to deploy `infrastructure/ec2/network.yaml` using the AWS CLI profile `atu-lab` failed with an `AccessDenied` error.
+
+The IAM user did not have permission to perform `cloudformation:DescribeStacks` on the `ATU-EC2-Network` stack.
+
+I also attempted to inspect the existing IAM group policies using `iam:ListAttachedGroupPolicies`, but this operation was denied.
+
+The problem was related to missing IAM permissions, not to the CloudFormation network template.
+
+**Implementation - IAM Bootstrap**
+
+I created a separate CloudFormation template:
+
+`infrastructure/bootstrap/network-deployment-access.yaml`
+
+The template defines an `AWS::IAM::ManagedPolicy` resource named `NetworkDeploymentPolicy`.
+
+The policy is attached to the existing IAM group `ATU-DevOps-Lab-Developers` using 
+the `Groups` property and the `DeveloperGroupName` parameter.
+
+The existing IAM user `atu-devops-lab` is a member of this group and receives the permissions through group membership.
+
+The bootstrap policy contains the following permission groups:
+
+- `ManageEC2NetworkStack`, allows creating, updating, deleting and inspecting the `ATU-EC2-Network` 
+CloudFormation stack and working with CloudFormation Change Sets.
+- `ManageNetworkResources`, allows the EC2 networking operations required to create and configure the VPC, subnet,
+Internet Gateway, route table and related resources.
+- `ListCloudFormationExports`, allows reading exported values from CloudFormation stacks.
+
+The `AWS::IAM::ManagedPolicy` resource supports attaching managed policies to existing IAM groups [[74]](#ref-74).
+
+**IAM Bootstrap Deployment**
+
+I authenticated to my personal AWS account using a temporary root session with the AWS CLI profile `default`.
+
+The root account was used only to deploy the initial IAM bootstrap because the existing IAM user did not have sufficient permissions.
+
+Deployment command:
+
+```powershell
+aws cloudformation deploy `
+  --template-file infrastructure/bootstrap/network-deployment-access.yaml `
+  --stack-name ATU-EC2-Bootstrap `
+  --capabilities CAPABILITY_IAM `
+  --region eu-west-1 `
+  --profile default `
+  --tags Project=ATU-CloudFormation-Lab ManagedBy=CloudFormation
+```
+
+**Actual Result:**
+
+`Successfully created/updated stack - ATU-EC2-Bootstrap`
+
+I verified the CloudFormation stack status using `describe-stacks`.
+
+**Stack Status:** `CREATE_COMPLETE`
+The managed policy was created and attached to the existing IAM group.
+No networking resources were created by the bootstrap stack.
+
+**Implementation — EC2 Network Deployment**
+After updating the IAM permissions, I deployed the existing network template:
+
+`infrastructure/ec2/network.yaml`
+
+The deployment was performed using the dedicated IAM profile `atu-lab`, not the root account.
+
+Deployment command:
+
+```powershell
+aws cloudformation deploy `
+  --template-file infrastructure/ec2/network.yaml `
+  --stack-name ATU-EC2-Network `
+  --region eu-west-1 `
+  --profile atu-lab `
+  --tags Project=ATU-CloudFormation-Lab ManagedBy=CloudFormation
+```
+
+**Actual Result:**
+
+`Successfully created/updated stack - ATU-EC2-Network`
+
+The AWS CLI `cloudformation deploy` command creates and executes 
+CloudFormation Change Sets to apply infrastructure changes [[71]](#ref-71).
+
+**CloudFormation Stack Verification**
+
+I checked the network stack status using:
+
+```powershell
+aws cloudformation describe-stacks `
+  --stack-name ATU-EC2-Network `
+  --region eu-west-1 `
+  --profile atu-lab `
+  --query "Stacks[0].StackStatus" `
+  --output text
+```
+
+**Actual Result:** `CREATE_COMPLETE`
+
+I then inspected the deployed resources using:
+
+```powershell
+aws cloudformation list-stack-resources `
+  --stack-name ATU-EC2-Network `
+  --region eu-west-1 `
+  --profile atu-lab `
+  --query "StackResourceSummaries[*].[LogicalResourceId,ResourceType,PhysicalResourceId,ResourceStatus]" `
+  --output table
+```
+
+All seven CloudFormation resources reached `CREATE_COMPLETE`.
+
+**Verified Network Resources**
+
+| Resource             | Actual Value               |
+|----------------------|----------------------------|
+| CloudFormation Stack | `ATU-EC2-Network`          |
+| VPC ID               | `vpc-06f59f7a44f729242`    |
+| VPC CIDR             | `10.20.0.0/16`             |
+| Public Subnet ID     | `subnet-081a4368970f2c736` |
+| Public Subnet CIDR   | `10.20.1.0/24`             |
+| Internet Gateway ID  | `igw-0dafc0da0977c0418`    |
+| Route Table ID       | `rtb-0dfd622eba3352dd4`    |
+| Default Route        | `0.0.0.0/0`                |
+
+The deployed network includes:
+
+- One VPC.
+- One public subnet.
+- One Internet Gateway.
+- One Internet Gateway attachment.
+- One public route table.
+- One default route to the Internet Gateway.
+- One subnet route table association.
+
+**CloudFormation Outputs Verification**
+
+I retrieved the stack Outputs using:
+
+```powershell
+aws cloudformation describe-stacks `
+  --stack-name ATU-EC2-Network `
+  --region eu-west-1 `
+  --profile atu-lab `
+  --query "Stacks[0].Outputs" `
+  --output table
+```
+
+The command returned the VPC ID, subnet ID and their IPv4 CIDR ranges.
+
+CloudFormation Outputs provide resource information without requiring identifiers to be hardcoded into other
+templates [[72]](#ref-72).
+
+**IAM Permission Troubleshooting — CloudFormation Exports**
+
+After successfully deploying the network, I attempted to list its exported values using `cloudformation:ListExports`.
+
+The first attempt failed with `AccessDenied` because the IAM user `atu-devops-lab` did not have permission to perform this action.
+
+I updated the existing bootstrap template by adding a separate policy statement:
+
+```yaml
+- Sid: ListCloudFormationExports
+  Effect: Allow
+  Action:
+    - cloudformation:ListExports
+  Resource: "*"
+```
+
+The `Resource: "*"` scope is required because the `ListExports` action does not support resource-level permissions.
+
+I redeployed the existing `ATU-EC2-Bootstrap` stack using the privileged `default` profile.
+After the IAM policy update, I repeated the verification with `atu-lab`.
+
+**Actual Result:** The CloudFormation Exports were returned successfully.
+
+**CloudFormation Exports Verification** 
+
+command:
+
+```powershell
+aws cloudformation list-exports `
+  --region eu-west-1 `
+  --profile atu-lab `
+  --query "Exports[?Name=='ATU-EC2-VpcId' || Name=='ATU-EC2-PublicSubnetId']" `
+  --output table
+```
+
+**Verified Exports**
+
+| Export Name              | Actual Value               |
+|--------------------------|----------------------------|
+| `ATU-EC2-VpcId`          | `vpc-06f59f7a44f729242`    |
+| `ATU-EC2-PublicSubnetId` | `subnet-081a4368970f2c736` |
+
+These exported values can be imported into subsequent CloudFormation stacks using `Fn::ImportValue` [[73]](#ref-73).
+
+**Design Decisions**
+I decided to separate the IAM bootstrap configuration from the network infrastructure.
+The bootstrap stack manages deployment permissions, while the network stack manages AWS networking resources.
+The AWS root account was used only for the initial IAM bootstrap and its required permission update.
+The EC2 network was deployed using the dedicated IAM user `atu-devops-lab`.
+This demonstrates the use of identity-based IAM policies to control access to AWS API operations [[75]](#ref-75).
+
+The bootstrap policy restricts CloudFormation stack management to `ATU-EC2-Network`, 
+although its Change Set ARN pattern covers Change Sets more broadly.
+
+Some EC2 networking actions currently use `Resource: "*"`, which provides broader resource scope than ideal.
+The policy should be reviewed for supported resource-level and condition-based restrictions as a future security improvement.
+
+**Testing and Validation**
+
+- IAM bootstrap deployment: Passed (`CREATE_COMPLETE`).
+- EC2 network deployment: Passed (`CREATE_COMPLETE`).
+- Bootstrap stack status: Passed.
+- Network stack status: Passed.
+- Network resource verification: Passed (7 of 7 resources).
+- CloudFormation Outputs: Passed.
+- CloudFormation Exports: Passed.
+- IAM permission update for `ListExports`: Passed.
+
+**Result: Passed**
+The IAM bootstrap and EC2 network were deployed and verified using AWS CloudFormation and AWS CLI.
+No network resources were manually created in the AWS Console.
+
+**Next Step**
+Deploy the EC2 application Security Group using CloudFormation and import the existing VPC ID through `Fn::ImportValue`.
 
 ## 6. References
 
@@ -3009,4 +3255,29 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-
 <a id="ref-70"></a>
 **[70]** Amazon Web Services (n.d.) *AWS::IAM::ManagedPolicy*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-managedpolicy.html
+(Accessed: 24 October 2026).
+
+<a id="ref-71"></a>
+**[71]** Amazon Web Services (n.d.) *AWS CLI Command Reference: cloudformation deploy*.
+Available at: https://docs.aws.amazon.com/cli/latest/reference/cloudformation/deploy.html
+(Accessed: 24 October 2026).
+
+<a id="ref-72"></a>
+**[72]** Amazon Web Services (n.d.) *AWS CLI Command Reference: describe-stacks*.
+Available at: https://docs.aws.amazon.com/cli/latest/reference/cloudformation/describe-stacks.html
+(Accessed: 24 October 2026).
+
+<a id="ref-73"></a>
+**[73]** Amazon Web Services (n.d.) *Get exported outputs from a deployed CloudFormation stack*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html
+(Accessed: 24 October 2026).
+
+<a id="ref-74"></a>
+**[74]** Amazon Web Services (n.d.) *AWS::IAM::ManagedPolicy*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-managedpolicy.html
+(Accessed: 24 October 2026).
+
+<a id="ref-75"></a>
+**[75]** Amazon Web Services (n.d.) *Identity-based policies and resource-based policies*.
+Available at: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_identity-vs-resource.html
 (Accessed: 24 October 2026).
