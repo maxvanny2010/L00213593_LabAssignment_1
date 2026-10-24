@@ -25,7 +25,8 @@ Resources:
             Principal:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
-
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Tags:
         - Key: Name
           Value: ATU-EC2-Application-Role

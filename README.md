@@ -2931,6 +2931,20 @@ AWS Console.
 **Next Step**
 Prepare and deploy the EC2 application IAM Role and Instance Profile.
 
+
+**IAM Permission Troubleshooting — PassRole**
+The initial deployment of `ATU-EC2-IAM` failed because the deployment user `atu-devops-lab` did not have the `iam:PassRole` permission.
+
+The failure occurred while CloudFormation was configuring the IAM Role and Instance Profile.
+AWS CloudFormation rolled back the stack, which reached `ROLLBACK_COMPLETE`.
+I updated the existing IAM bootstrap template with a new `PassApplicationRoleToEC2` statement.
+The statement grants `iam:PassRole` only for project IAM roles matching `ATU-EC2-IAM-*` and restricts the target service to `ec2.amazonaws.com`.
+
+I redeployed the `ATU-EC2-Bootstrap` stack through CloudFormation, deleted the failed IAM stack and repeated the deployment using `atu-lab`.
+
+**Result:** Passed.
+
+
 ## 6. References
 
 <a id="ref-1"></a>
