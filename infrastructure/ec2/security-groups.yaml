@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  ATU CloudFormation Lab - Security Group for the EC2 Java application.
+
+Resources:
+
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for the Java HTTP application
+
+      # Reuse the VPC defined in network.yaml.
+      VpcId:
+        Fn::ImportValue: ATU-EC2-VpcId
+
+      # No inbound rules are defined.
+      # Inbound traffic is denied by default.
+
+      # Allow outbound HTTPS for AWS service connections.
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow outbound HTTPS
+
+      Tags:
+        - Key: Name
+          Value: ATU-EC2-Application-SG
+        - Key: Project
+          Value: ATU-CloudFormation-Lab
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+
+  ApplicationSecurityGroupId:
+    Description: Security Group ID for the EC2 application
+    Value: !GetAtt ApplicationSecurityGroup.GroupId
+    Export:
+      Name: ATU-EC2-ApplicationSecurityGroupId

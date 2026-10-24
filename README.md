@@ -1172,7 +1172,7 @@ test verifies Lambda execution, not yet the full three-tier application.
 
 I chose a Maven Multi-Module structure because this project will support both a Java Lambda implementation and a
 lightweight Java HTTP server running on EC2. The `lambda-app` module is implemented now;
-shared application logic (`common`) and the EC2 application (`ec2-app`) are planned for 
+shared application logic (`common`) and the EC2 application (`ec2-app`) are planned for
 later iterations. This avoids moving the same source files twice.
 
 **Limitations:** The handler currently returns a static message. API Gateway connectivity and DynamoDB read/write
@@ -2500,7 +2500,6 @@ AWS CloudFormation template validation and deployment have not yet been confirme
 **Next Step**
 Add automated CloudFormation validation using GitHub Actions.
 
-
 ### Iteration 19 — Automated CloudFormation Validation
 
 **Objective**
@@ -2519,7 +2518,8 @@ Automate CloudFormation template validation using GitHub Actions and AWS CloudFo
 **Reference Implementation**
 I used the official GitHub `actions/setup-python` workflow example as a starting point [[64]](#ref-64).
 
-I adapted its structure to install and execute AWS CloudFormation Linter, following the official AWS documentation [[60]](#ref-60).
+I adapted its structure to install and execute AWS CloudFormation Linter, following the official AWS
+documentation [[60]](#ref-60).
 
 GitHub's workflow syntax documentation was used to configure branch triggers, jobs and permissions [[63]](#ref-63).
 
@@ -2551,6 +2551,45 @@ GitHub Actions execution: Pending verification.
 **Next Step**
 Verify the GitHub Actions workflow and proceed with EC2 Security Groups.
 
+### Iteration 20 — EC2 Application Security Group
+
+**Objective**
+Define network access restrictions for the Java HTTP Server running on Amazon EC2.
+
+**Implementation**
+
+- Created `infrastructure/ec2/security-groups.yaml`.
+- Defined `ApplicationSecurityGroup` using `AWS::EC2::SecurityGroup`.
+- Imported the VPC ID from the network CloudFormation stack.
+- Left inbound traffic disabled by default.
+- Allowed outbound HTTPS traffic on TCP port 443.
+- Added resource tags and a Security Group ID output.
+
+**Reference Implementation**
+I used the official AWS CloudFormation Security Group documentation as a reference [[65]](#ref-65).
+The Security Group references the VPC created in Iteration 18 using `Fn::ImportValue` [[66]](#ref-66).
+
+**Design Decisions**
+I decided to separate Security Groups from the network template to keep the infrastructure modular.
+
+The Security Group has no inbound rules at this stage. HTTP access to the application will be configured separately
+after reviewing access restrictions.
+
+Outbound HTTPS is allowed for connections to AWS services.
+
+**Security Considerations**
+Security Groups control network access using protocols, ports and traffic sources.
+
+They do not provide application-level authentication.
+
+**Testing and Validation**
+
+- Local `cfn-lint` validation: pending.
+- AWS CloudFormation template validation: pending.
+- Infrastructure deployment: pending.
+
+**Next Step**
+Review the validation results and prepare IAM permissions for the EC2 application.
 
 ## 6. References
 
@@ -2872,7 +2911,8 @@ Available at: https://maven.apache.org/guides/introduction/introduction-to-depen
 
 <a id="ref-59"></a>
 **[59]** Amazon Web Services (n.d.) *Fn::Cidr*.
-Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-cidr.html
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-cidr.html
 (Accessed: 24 October 2026).
 
 <a id="ref-60"></a>
@@ -2882,7 +2922,8 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn
 
 <a id="ref-61"></a>
 **[61]** Amazon Web Services (n.d.) *Fn::GetAZs*.
-Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-getavailabilityzones.html
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-getavailabilityzones.html
 (Accessed: 24 October 2026).
 
 <a id="ref-62"></a>
@@ -2893,4 +2934,15 @@ Available at: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gate
 <a id="ref-64"></a>
 **[64]** GitHub (n.d.) *actions/setup-python: Set up your GitHub Actions workflow with a specific version of Python*.
 Available at: https://github.com/actions/setup-python
+(Accessed: 24 October 2026).
+
+<a id="ref-65"></a>
+**[65]** Amazon Web Services (n.d.) *AWS::EC2::SecurityGroup*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ec2-securitygroup.html
+(Accessed: 24 October 2026).
+
+<a id="ref-66"></a>
+**[66]** Amazon Web Services (n.d.) *Fn::ImportValue*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-importvalue.html
 (Accessed: 24 October 2026).
