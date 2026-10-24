@@ -58,11 +58,11 @@ The static website infrastructure has been deployed and verified using AWS Cloud
 ### Part A(b) — Three-Tier Architecture
 
 **Status:** In progress. The API Gateway HTTP API, Java 21 Lambda application and Amazon DynamoDB table are deployed and
-tested end to end. The web user interface is not yet integrated with the API.
+tested end to end. The web user interface has been integrated with the API.
 
 | Tier             | Component                                             | Current status                              |
 |------------------|-------------------------------------------------------|---------------------------------------------|
-| Web Tier         | Static HTML website delivered using S3 and CloudFront | Deployed; API integration pending           |
+| Web Tier         | Static HTML website delivered using S3 and CloudFront | Deployed; API integration tested           |
 | Application Tier | API Gateway HTTP API and Java Lambda                  | Deployed; GET and IAM-protected POST tested |
 | Database Tier    | Amazon DynamoDB messages table                        | Deployed; write and read verified           |
 
@@ -1170,8 +1170,7 @@ test verifies Lambda execution, not yet the full three-tier application.
 
 **Design decision and next steps**
 
-I chose a Maven Multi-Module structure because this project will support both a Java Lambda implementation and a Spring
-Boot application running on EC2. The `lambda-app` module is implemented now; shared application logic (`common`) and the
+I chose a Maven Multi-Module structure because this project will support both a Java Lambda implementation and a lightweight Java HTTP server running on EC2. The `lambda-app` module is implemented now; shared application logic (`common`) and the
 EC2 application (`ec2-app`) are planned for later iterations. This avoids moving the same source files twice.
 
 **Limitations:** The handler currently returns a static message. API Gateway connectivity and DynamoDB read/write
@@ -2245,7 +2244,7 @@ The final integration test confirmed that all three tiers communicate successful
 
 **Result:** Part A(b) has been implemented and tested successfully.
 
-The next development stage will explore an alternative Application Tier using Spring Boot on Amazon EC2, with networking
+The next development stage will explore an alternative Application Tier using a lightweight Java HTTP server on Amazon EC2, with networking
 and security resources defined through CloudFormation.
 
 ### Iteration 17 — Java Application Reuse for Amazon EC2
@@ -2379,7 +2378,7 @@ I decided to manage shared dependency versions in the parent Maven project to av
 multiple modules.
 
 Maven `dependencyManagement` provides dependency version management without automatically adding dependencies to every
-child module [[59]](#ref-59).
+child module [[58]](#ref-58).
 
 **Validation**
 Maven compilation and packaging completed successfully for both applications.
@@ -2422,7 +2421,7 @@ exposed publicly without additional protection.
 I centralized the SLF4J logging implementation version in the parent Maven POM.
 Both `lambda-app` and `ec2-app` declare the `slf4j-simple` dependency without specifying its version.
 The `common` module does not depend directly on a specific logging implementation.
-This follows the same Maven dependency management approach used for Jackson [[59]](#ref-59).
+This follows the same Maven dependency management approach used for Jackson [[58]](#ref-58).
 
 **Testing and Validation**
 
@@ -2437,12 +2436,69 @@ The refactored HTTP server responds correctly to health checks and rejects inval
 DynamoDB integration testing remains pending until the EC2 instance and its IAM role are deployed.
 
 **Validation**
-Maven build and local HTTP endpoint testing are pending.
+Maven packaging and local HTTP endpoint checks passed. Valid message read/write operations against DynamoDB from EC2 are pending until instance deployment and IAM configuration.
 
 **Next Step**
-Define the EC2 networking and IAM infrastructure using AWS CloudFormation.
+Define the EC2 network with AWS CloudFormation.
 
-## 8. References
+
+### Iteration 18 — EC2 Network Infrastructure
+
+#### Step 1 — Create the VPC Network with CloudFormation
+
+**Objective**
+Create a dedicated AWS network for the standalone Java HTTP Server application.
+
+**Implementation**
+
+- Created `infrastructure/ec2/network.yaml`.
+- Defined a VPC with CIDR `10.20.0.0/16`.
+- Created one public subnet with CIDR `10.20.1.0/24`.
+- Used `Fn::Cidr` to calculate subnet address ranges.
+- Used `Fn::Select` to select the required subnet and Availability Zone.
+- Created and attached an Internet Gateway.
+- Configured a public route table with a default IPv4 route.
+- Associated the public subnet with its route table.
+- Disabled automatic public IPv4 assignment.
+- Added resource tags and CloudFormation Outputs.
+
+**Design Decisions**
+I decided to create a dedicated VPC instead of using the default AWS VPC.
+The application will run on a single EC2 instance and use Amazon DynamoDB as its managed database.
+A private subnet and NAT Gateway are not required for the current architecture.
+The public subnet uses an Internet Gateway for internet connectivity [[62]](#ref-62).
+
+**Subnet Address Allocation**
+I used `Fn::Cidr` to calculate two `/24` CIDR blocks from the VPC network:
+
+- Index 0: `10.20.0.0/24`
+- Index 1: `10.20.1.0/24`
+
+`Fn::Select` selects index 1 for the public subnet. Only one subnet resource is created [[59]](#ref-59).
+
+The Availability Zone is selected dynamically using `Fn::GetAZs` [[61]](#ref-61).
+
+**Security**
+Automatic public IPv4 assignment is disabled using `MapPublicIpOnLaunch: false`.
+The EC2 instance will receive its network access configuration in a later stage.
+Security Groups and IAM permissions will be defined separately.
+
+**Testing and Validation**
+The CloudFormation template was checked locally:
+
+`cfn-lint --regions eu-west-1 -t infrastructure/ec2/network.yaml`
+
+The command completed with exit code `0`.
+
+**Result: Passed**
+Local CloudFormation lint validation passed.
+AWS CloudFormation template validation and deployment have not yet been confirmed.
+
+**Next Step**
+Add automated CloudFormation validation using GitHub Actions.
+
+
+## 6. References
 
 <a id="ref-1"></a>
 **[1]** Amazon Web Services (n.d.) *AWS CloudFormation documentation*.
@@ -2755,9 +2811,27 @@ Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-
 Available at: https://docs.oracle.com/en/java/javase/21/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html
 (Accessed: 24 October 2026).
 
-<a id="ref-59"></a>
-**[59]** Apache Software Foundation (n.d.) *Introduction to the Dependency Mechanism*.
+<a id="ref-58"></a>
+**[58]** Apache Software Foundation (n.d.) *Introduction to the Dependency Mechanism*.
 Available at: https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html
 (Accessed: 24 October 2026).
 
+<a id="ref-59"></a>
+**[59]** Amazon Web Services (n.d.) *Fn::Cidr*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-cidr.html
+(Accessed: 24 October 2026).
 
+<a id="ref-60"></a>
+**[60]** Amazon Web Services (n.d.) *Validate templates with cfn-lint*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-lint.html
+(Accessed: 24 October 2026).
+
+<a id="ref-61"></a>
+**[61]** Amazon Web Services (n.d.) *Fn::GetAZs*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-getavailabilityzones.html
+(Accessed: 24 October 2026).
+
+<a id="ref-62"></a>
+**[62]** Amazon Web Services (n.d.) *Enable internet access for a VPC using an internet gateway*.
+Available at: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html
+(Accessed: 24 October 2026).
