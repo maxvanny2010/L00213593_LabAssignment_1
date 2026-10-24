@@ -42,6 +42,7 @@ Resources:
               - cloudformation:DeleteChangeSet
             Resource:
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-Network/*
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-SecurityGroup/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
 
           - Sid: ManageNetworkResources
@@ -78,6 +79,18 @@ Resources:
             Effect: Allow
             Action:
               - cloudformation:ListExports
+            Resource: "*"
+          - Sid: ManageApplicationSecurityGroup
+            Effect: Allow
+            Action:
+              - ec2:CreateSecurityGroup
+              - ec2:DeleteSecurityGroup
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeSecurityGroupRules
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:RevokeSecurityGroupIngress
+              - ec2:AuthorizeSecurityGroupEgress
+              - ec2:RevokeSecurityGroupEgress
             Resource: "*"
 Outputs:
 
