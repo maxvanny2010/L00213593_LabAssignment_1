@@ -2225,21 +2225,222 @@ AWS recommends validating CloudFormation templates before deploying infrastructu
 
 ### Part A(b) — Conclusion
 
-The objective of Part A(b) was to design and implement a three-tier architecture using AWS services and Infrastructure as Code.
+The objective of Part A(b) was to design and implement a three-tier architecture using AWS services and Infrastructure
+as Code.
 
-I implemented the Web Tier using Amazon S3 and CloudFront, the Application Tier using Amazon API Gateway and Java Lambda, and the Database Tier using Amazon DynamoDB.
+I implemented the Web Tier using Amazon S3 and CloudFront, the Application Tier using Amazon API Gateway and Java
+Lambda, and the Database Tier using Amazon DynamoDB.
 
-AWS CloudFormation was used to define and manage the infrastructure, including the DynamoDB table, Lambda execution role, API Gateway configuration and access permissions.
+AWS CloudFormation was used to define and manage the infrastructure, including the DynamoDB table, Lambda execution
+role, API Gateway configuration and access permissions.
 
-The application was tested successfully. The GET endpoint retrieved messages from DynamoDB, while the POST endpoint created new messages using AWS IAM authentication. I also connected the static website to the API, allowing messages to be displayed directly in the browser.
+The application was tested successfully. The GET endpoint retrieved messages from DynamoDB, while the POST endpoint
+created new messages using AWS IAM authentication. I also connected the static website to the API, allowing messages to
+be displayed directly in the browser.
 
-During development, I encountered several IAM permission and deployment issues. Investigating CloudFormation stack events helped me understand the importance of access control, the least privilege and infrastructure validation.
+During development, I encountered several IAM permission and deployment issues. Investigating CloudFormation stack
+events helped me understand the importance of access control, the least privilege and infrastructure validation.
 
 The final integration test confirmed that all three tiers communicate successfully.
 
 **Result:** Part A(b) has been implemented and tested successfully.
 
-The next development stage will explore an alternative Application Tier using Spring Boot on Amazon EC2, with networking and security resources defined through CloudFormation.
+The next development stage will explore an alternative Application Tier using Spring Boot on Amazon EC2, with networking
+and security resources defined through CloudFormation.
+
+### Iteration 17 — Java Application Reuse for Amazon EC2
+
+#### Step 1 — Extract Shared Java Code into a Common Maven Module
+
+**Objective**
+
+Reuse the existing Java Lambda application logic in a second implementation running on Amazon EC2, without duplicating
+the business logic.
+
+**Implementation**
+
+- Created the `common` Maven module.
+- Moved `Message`, `MessageService`, `MessageRepository` and `AppConstants` into `common`.
+- Added the `common` dependency to `lambda-app`.
+- Kept the Lambda-specific `MessageHandler` and `ApiResponse` classes in `lambda-app`.
+- Updated the root Maven project to support multiple modules.
+
+**Design Decision**
+
+I decided to reuse the existing application logic instead of developing a second application from scratch.
+
+The shared module contains message validation, UUID generation, timestamps and DynamoDB operations. Both applications
+will use this module but expose their functionality through different HTTP mechanisms.
+
+Maven supports multi-module projects and builds dependencies in the required order [[43]](#ref-43).
+
+**Validation**
+
+The `common` module compiled and packaged successfully.
+
+The shared classes are now maintained in one location.
+
+#### Step 2 — Create a Lightweight Java HTTP Server
+
+**Objective**
+
+Create a second Java application that can run on Amazon EC2 without Spring Boot or Kubernetes.
+
+**Implementation**
+
+- Created the `ec2-app` Maven module.
+- Added a dependency on the existing `common` module.
+- Configured Maven Shade Plugin to package the application as an executable JAR.
+- Implemented `MessageHttpServer` using the Java HTTP Server API.
+- Configured port `8080` as the default HTTP port.
+- Implemented `GET /health` for application health checks.
+
+**Design Decision**
+
+I selected the Java HTTP Server API because the application requires only a small number of REST endpoints.
+
+This approach avoids introducing an additional web framework and keeps the implementation focused on AWS infrastructure
+and deployment automation.
+
+The EC2 application will reuse the same `MessageService` and `MessageRepository` classes as the Lambda application.
+
+**Testing and Validation**
+
+Executed:
+
+```powershell
+mvn -pl ec2-app -am package -DskipTests
+```
+
+**Actual Result:** `BUILD SUCCESS`.
+
+Started the HTTP server:
+
+```powershell
+java -jar ec2-app/target/ec2-app-1.0-SNAPSHOT.jar
+```
+
+**Actual Result:**
+
+```text
+Java HTTP Server started on port 8080
+```
+
+Tested the health endpoint:
+
+```powershell
+curl.exe -i http://localhost:8080/health
+```
+
+**Actual Result:**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=UTF-8
+```
+
+```json
+{
+  "status": "UP",
+  "service": "ec2-app"
+}
+```
+
+**Result: Passed**
+
+The standalone Java application compiled, started and responded successfully to an HTTP request.
+
+**Limitations**
+
+The EC2 application currently implements only the health endpoint. Message endpoints and DynamoDB integration have not
+yet been tested in this application.
+
+The application has been tested locally but has not yet been deployed to Amazon EC2.
+
+**Next Step**
+
+Implement `GET /message` and `POST /message` using the shared `MessageService`, then define the EC2 infrastructure with
+AWS CloudFormation.
+
+#### Step 3 — Centralise Jackson Dependency Management
+
+**Objective**
+Manage the Jackson JSON library version centrally for both Java applications.
+
+**Implementation**
+
+- Added `jackson-databind` version `2.22.3` to the parent Maven `dependencyManagement`.
+- Removed the explicit Jackson version from `lambda-app`.
+- Added the Jackson dependency to `ec2-app` without specifying a version.
+- Kept the `common` module independent of Jackson because JSON processing belongs to the application entry points.
+
+**Design Decision**
+I decided to manage shared dependency versions in the parent Maven project to avoid maintaining the same version in
+multiple modules.
+
+Maven `dependencyManagement` provides dependency version management without automatically adding dependencies to every
+child module [[59]](#ref-59).
+
+**Validation**
+Maven compilation and packaging completed successfully for both applications.
+
+**Next Step**
+Implement GET and POST message endpoints in the EC2 HTTP server using the shared `MessageService`.
+
+#### Step 4 — Refactor the EC2 HTTP Server
+
+**Objective**
+
+Improve the maintainability of the standalone Java HTTP server by separating application startup, HTTP request handling
+and JSON response processing.
+
+**Implementation**
+
+- Simplified `MessageHttpServer` to initialise dependencies and start the HTTP server.
+- Created `HealthHandler` for the health endpoint.
+- Created `MessageHttpHandler` for GET and POST message operations.
+- Created `JsonHttpResponse` for consistent HTTP JSON responses.
+- Added `MessageRequest` to represent incoming message data.
+- Reused the existing `MessageService` and `MessageRepository` from the `common` module.
+- Preserved the existing `/health` endpoint.
+
+**Design Decision**
+I decided to separate responsibilities instead of implementing all request processing inside the main server class.
+
+The HTTP handlers manage incoming requests, while the shared service and repository remain responsible for business
+logic and database operations.
+
+This approach reduces code duplication and makes the application easier to maintain and test.
+
+The implementation uses the Java HTTP Server API [[57]](#ref-57).
+
+**Security Consideration**
+The HTTP server listens on localhost by default. The POST endpoint does not implement authentication, so it must not be
+exposed publicly without additional protection.
+
+**Dependency Management**
+I centralized the SLF4J logging implementation version in the parent Maven POM.
+Both `lambda-app` and `ec2-app` declare the `slf4j-simple` dependency without specifying its version.
+The `common` module does not depend directly on a specific logging implementation.
+This follows the same Maven dependency management approach used for Jackson [[59]](#ref-59).
+
+**Testing and Validation**
+
+- Maven packaging completed successfully.
+- `GET /health` returned HTTP 200.
+- `POST /message` with an empty JSON object returned HTTP 400.
+- Invalid message input returned `Message must be a string`.
+- SLF4J logging configuration was centralised in the parent POM.
+
+**Result: Passed**
+The refactored HTTP server responds correctly to health checks and rejects invalid message requests.
+DynamoDB integration testing remains pending until the EC2 instance and its IAM role are deployed.
+
+**Validation**
+Maven build and local HTTP endpoint testing are pending.
+
+**Next Step**
+Define the EC2 networking and IAM infrastructure using AWS CloudFormation.
 
 ## 8. References
 
@@ -2548,4 +2749,15 @@ Available at: https://docs.aws.amazon.com/cli/latest/reference/configure/export-
 **[56]** Amazon Web Services (n.d.) *Configure CORS for HTTP APIs in API Gateway*.
 Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-cors.html
 (Accessed: 23 October 2026).
+
+<a id="ref-57"></a>
+**[57]** Oracle (n.d.) *HttpServer (Java SE 21 API Specification)*.
+Available at: https://docs.oracle.com/en/java/javase/21/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html
+(Accessed: 24 October 2026).
+
+<a id="ref-59"></a>
+**[59]** Apache Software Foundation (n.d.) *Introduction to the Dependency Mechanism*.
+Available at: https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html
+(Accessed: 24 October 2026).
+
 
