@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ATU CloudFormation Lab - EC2 network foundation.
+  A VPC with one public subnet and an Internet Gateway.
+
+Resources:
+  Ec2Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: ATU-EC2-VPC
+        - Key: Project
+          Value: ATU-CloudFormation-Lab
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Ec2Vpc
+      # Split 10.20.0.0/16 into two /24 ranges and select the second:
+      # index 0 = 10.20.0.0/24, index 1 = 10.20.1.0/24.
+      # Only one subnet resource is created.
+      CidrBlock: !Select
+        - 1
+        - !Cidr
+          - !GetAtt Ec2Vpc.CidrBlock
+          - 2
+          - 8
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: ATU-EC2-Public-Subnet
+        - Key: NetworkTier
+          Value: Public
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ATU-EC2-IGW
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  AttachInternetGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Ec2Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Ec2Vpc
+      Tags:
+        - Key: Name
+          Value: ATU-EC2-Public-Routes
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Default IPv4 traffic uses the Internet Gateway.
+  # EC2 inbound access will be restricted separately by a Security Group.
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachInternetGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+Outputs:
+  VpcId:
+    Description: VPC ID for subsequent application stacks
+    Value: !Ref Ec2Vpc
+    Export:
+      Name: ATU-EC2-VpcId
+
+  PublicSubnetId:
+    Description: Public subnet ID for subsequent application stacks
+    Value: !Ref PublicSubnet
+    Export:
+      Name: ATU-EC2-PublicSubnetId
+
+  VpcCidr:
+    Description: VPC IPv4 range
+    Value: !GetAtt Ec2Vpc.CidrBlock
+
+  PublicSubnetCidr:
+    Description: Generated public subnet IPv4 range
+    Value: !GetAtt PublicSubnet.CidrBlock
