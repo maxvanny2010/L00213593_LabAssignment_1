@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  ATU CloudFormation Lab - bootstrap permissions
+  for deploying the EC2 network stack.
+
+Parameters:
+  DeveloperGroupName:
+    Type: String
+    Default: ATU-DevOps-Lab-Developers
+    Description: Existing IAM developer group
+
+Resources:
+
+  NetworkDeploymentPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Permissions for the ATU EC2 network CloudFormation stack.
+
+      Groups:
+        - !Ref DeveloperGroupName
+
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+
+          - Sid: ManageEC2NetworkStack
+            Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+              - cloudformation:UpdateStack
+              - cloudformation:DeleteStack
+              - cloudformation:DescribeStacks
+              - cloudformation:DescribeStackEvents
+              - cloudformation:DescribeStackResources
+              - cloudformation:ListStackResources
+              - cloudformation:GetTemplate
+              - cloudformation:CreateChangeSet
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:DeleteChangeSet
+            Resource:
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-Network/*
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
+
+          - Sid: ManageNetworkResources
+            Effect: Allow
+            Action:
+              - ec2:CreateVpc
+              - ec2:DeleteVpc
+              - ec2:ModifyVpcAttribute
+              - ec2:CreateSubnet
+              - ec2:DeleteSubnet
+              - ec2:ModifySubnetAttribute
+              - ec2:CreateInternetGateway
+              - ec2:DeleteInternetGateway
+              - ec2:AttachInternetGateway
+              - ec2:DetachInternetGateway
+              - ec2:CreateRouteTable
+              - ec2:DeleteRouteTable
+              - ec2:CreateRoute
+              - ec2:DeleteRoute
+              - ec2:ReplaceRoute
+              - ec2:AssociateRouteTable
+              - ec2:DisassociateRouteTable
+              - ec2:CreateTags
+              - ec2:DeleteTags
+              - ec2:DescribeVpcs
+              - ec2:DescribeSubnets
+              - ec2:DescribeInternetGateways
+              - ec2:DescribeRouteTables
+              - ec2:DescribeAvailabilityZones
+              - ec2:DescribeAccountAttributes
+            Resource: '*'
+
+          - Sid: ListCloudFormationExports
+            Effect: Allow
+            Action:
+              - cloudformation:ListExports
+            Resource: "*"
+Outputs:
+
+  NetworkDeploymentPolicyArn:
+    Description: Managed policy ARN
+    Value: !Ref NetworkDeploymentPolicy
