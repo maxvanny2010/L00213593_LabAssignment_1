@@ -2600,7 +2600,8 @@ Define least-privilege IAM permissions for the EC2 Java application using AWS Cl
 
 - Created `infrastructure/ec2/iam.yaml`.
 - Defined `ApplicationRole` using `AWS::IAM::Role` with a trust policy for the EC2 service.
-- Created a separate `AWS::IAM::ManagedPolicy` granting `dynamodb:Scan` and `dynamodb:PutItem` on the existing messages  table only.
+- Created a separate `AWS::IAM::ManagedPolicy` granting `dynamodb:Scan` and `dynamodb:PutItem` on the existing messages
+  table only.
 - Attached the managed policy to the EC2 role.
 - Created `ApplicationInstanceProfile` using `AWS::IAM::InstanceProfile`.
 - Added CloudFormation Outputs for the IAM role ARN, managed policy ARN and instance profile name.
@@ -2635,7 +2636,8 @@ IAM template yet.
 
 **Next Step**
 
-Validate the revised IAM template, review the Pull Request and prepare infrastructure deployment entirely through CloudFormation.
+Validate the revised IAM template, review the Pull Request and prepare infrastructure deployment entirely through
+CloudFormation.
 
 ### Iteration 22 - IAM Bootstrap and EC2 Network Deployment
 
@@ -2643,16 +2645,18 @@ Validate the revised IAM template, review the Pull Request and prepare infrastru
 
 Deploy the EC2 network infrastructure using AWS CloudFormation and Infrastructure as Code (IaC).
 
-Configure the required IAM permissions so that the dedicated IAM user `atu-devops-lab` 
+Configure the required IAM permissions so that the dedicated IAM user `atu-devops-lab`
 can deploy and manage the network without using the AWS root account for regular infrastructure operations.
 
 **Initial Problem**
 
-The first attempt to deploy `infrastructure/ec2/network.yaml` using the AWS CLI profile `atu-lab` failed with an `AccessDenied` error.
+The first attempt to deploy `infrastructure/ec2/network.yaml` using the AWS CLI profile `atu-lab` failed with an
+`AccessDenied` error.
 
 The IAM user did not have permission to perform `cloudformation:DescribeStacks` on the `ATU-EC2-Network` stack.
 
-I also attempted to inspect the existing IAM group policies using `iam:ListAttachedGroupPolicies`, but this operation was denied.
+I also attempted to inspect the existing IAM group policies using `iam:ListAttachedGroupPolicies`, but this operation
+was denied.
 
 The problem was related to missing IAM permissions, not to the CloudFormation network template.
 
@@ -2664,17 +2668,17 @@ I created a separate CloudFormation template:
 
 The template defines an `AWS::IAM::ManagedPolicy` resource named `NetworkDeploymentPolicy`.
 
-The policy is attached to the existing IAM group `ATU-DevOps-Lab-Developers` using 
+The policy is attached to the existing IAM group `ATU-DevOps-Lab-Developers` using
 the `Groups` property and the `DeveloperGroupName` parameter.
 
 The existing IAM user `atu-devops-lab` is a member of this group and receives the permissions through group membership.
 
 The bootstrap policy contains the following permission groups:
 
-- `ManageEC2NetworkStack`, allows creating, updating, deleting and inspecting the `ATU-EC2-Network` 
-CloudFormation stack and working with CloudFormation Change Sets.
+- `ManageEC2NetworkStack`, allows creating, updating, deleting and inspecting the `ATU-EC2-Network`
+  CloudFormation stack and working with CloudFormation Change Sets.
 - `ManageNetworkResources`, allows the EC2 networking operations required to create and configure the VPC, subnet,
-Internet Gateway, route table and related resources.
+  Internet Gateway, route table and related resources.
 - `ListCloudFormationExports`, allows reading exported values from CloudFormation stacks.
 
 The `AWS::IAM::ManagedPolicy` resource supports attaching managed policies to existing IAM groups [[74]](#ref-74).
@@ -2683,7 +2687,8 @@ The `AWS::IAM::ManagedPolicy` resource supports attaching managed policies to ex
 
 I authenticated to my personal AWS account using a temporary root session with the AWS CLI profile `default`.
 
-The root account was used only to deploy the initial IAM bootstrap because the existing IAM user did not have sufficient permissions.
+The root account was used only to deploy the initial IAM bootstrap because the existing IAM user did not have sufficient
+permissions.
 
 Deployment command:
 
@@ -2729,7 +2734,7 @@ aws cloudformation deploy `
 
 `Successfully created/updated stack - ATU-EC2-Network`
 
-The AWS CLI `cloudformation deploy` command creates and executes 
+The AWS CLI `cloudformation deploy` command creates and executes
 CloudFormation Change Sets to apply infrastructure changes [[71]](#ref-71).
 
 **CloudFormation Stack Verification**
@@ -2805,7 +2810,8 @@ templates [[72]](#ref-72).
 
 After successfully deploying the network, I attempted to list its exported values using `cloudformation:ListExports`.
 
-The first attempt failed with `AccessDenied` because the IAM user `atu-devops-lab` did not have permission to perform this action.
+The first attempt failed with `AccessDenied` because the IAM user `atu-devops-lab` did not have permission to perform
+this action.
 
 I updated the existing bootstrap template by adding a separate policy statement:
 
@@ -2824,7 +2830,7 @@ After the IAM policy update, I repeated the verification with `atu-lab`.
 
 **Actual Result:** The CloudFormation Exports were returned successfully.
 
-**CloudFormation Exports Verification** 
+**CloudFormation Exports Verification**
 
 command:
 
@@ -2852,11 +2858,12 @@ The AWS root account was used only for the initial IAM bootstrap and its require
 The EC2 network was deployed using the dedicated IAM user `atu-devops-lab`.
 This demonstrates the use of identity-based IAM policies to control access to AWS API operations [[75]](#ref-75).
 
-The bootstrap policy restricts CloudFormation stack management to `ATU-EC2-Network`, 
+The bootstrap policy restricts CloudFormation stack management to `ATU-EC2-Network`,
 although its Change Set ARN pattern covers Change Sets more broadly.
 
 Some EC2 networking actions currently use `Resource: "*"`, which provides broader resource scope than ideal.
-The policy should be reviewed for supported resource-level and condition-based restrictions as a future security improvement.
+The policy should be reviewed for supported resource-level and condition-based restrictions as a future security
+improvement.
 
 **Testing and Validation**
 
@@ -2875,6 +2882,54 @@ No network resources were manually created in the AWS Console.
 
 **Next Step**
 Deploy the EC2 application Security Group using CloudFormation and import the existing VPC ID through `Fn::ImportValue`.
+
+### Iteration 23 — EC2 Security Group Deployment
+
+**Objective**
+Deploy the EC2 application Security Group using AWS CloudFormation and verify its network access rules.
+
+**Implementation**
+
+- Reused `infrastructure/ec2/security-groups.yaml`.
+- Updated the existing IAM bootstrap template to allow Security Group deployment.
+- Added the `ATU-EC2-SecurityGroup` stack to the permitted CloudFormation resources.
+- Granted the required EC2 Security Group API permissions.
+- Updated the `ATU-EC2-Bootstrap` CloudFormation stack.
+- Deployed the application Security Group using the `atu-lab` IAM profile.
+- Imported the existing VPC ID using `Fn::ImportValue`.
+
+**Reference Implementation**
+The Security Group configuration follows the official AWS CloudFormation documentation [[65]](#ref-65).
+The deployment reuses the network VPC through a CloudFormation cross-stack reference [[66]](#ref-66).
+AWS documents the EC2 Security Group permissions required to create groups and manage their rules [[76]](#ref-76).
+
+**Design Decisions**
+I decided to deploy the application Security Group as a separate CloudFormation stack.
+The Security Group does not allow inbound connections at this stage.
+Outbound connections are restricted to TCP port 443 for HTTPS communication.
+
+The Java HTTP Server will listen on port 8080. Inbound application access will be configured separately with appropriate
+restrictions.
+
+The IAM bootstrap policy was extended instead of granting AdministratorAccess to the deployment user.
+
+**Testing and Validation**
+
+- Local CloudFormation lint validation: Passed.
+- IAM bootstrap stack update: Passed.
+- Application Security Group deployment: Passed.
+- CloudFormation stack status: CREATE_COMPLETE.
+- Security Group ID: Verified through CloudFormation Outputs.
+- VPC association: Verified.
+- Inbound rules: No inbound rules.
+- Outbound rules: TCP 443 to 0.0.0.0/0.
+
+**Result: Passed**
+The application Security Group was deployed through CloudFormation without manually creating network resources in the
+AWS Console.
+
+**Next Step**
+Prepare and deploy the EC2 application IAM Role and Instance Profile.
 
 ## 6. References
 
@@ -3280,4 +3335,9 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 <a id="ref-75"></a>
 **[75]** Amazon Web Services (n.d.) *Identity-based policies and resource-based policies*.
 Available at: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_identity-vs-resource.html
+(Accessed: 24 October 2026).
+
+<a id="ref-76"></a>
+**[76]** Amazon Web Services (n.d.) *Example policies to control access to the Amazon EC2 console*.
+Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-policies-ec2-console.html
 (Accessed: 24 October 2026).
