@@ -62,7 +62,7 @@ tested end to end. The web user interface has been integrated with the API.
 
 | Tier             | Component                                             | Current status                              |
 |------------------|-------------------------------------------------------|---------------------------------------------|
-| Web Tier         | Static HTML website delivered using S3 and CloudFront | Deployed; API integration tested           |
+| Web Tier         | Static HTML website delivered using S3 and CloudFront | Deployed; API integration tested            |
 | Application Tier | API Gateway HTTP API and Java Lambda                  | Deployed; GET and IAM-protected POST tested |
 | Database Tier    | Amazon DynamoDB messages table                        | Deployed; write and read verified           |
 
@@ -1170,8 +1170,10 @@ test verifies Lambda execution, not yet the full three-tier application.
 
 **Design decision and next steps**
 
-I chose a Maven Multi-Module structure because this project will support both a Java Lambda implementation and a lightweight Java HTTP server running on EC2. The `lambda-app` module is implemented now; shared application logic (`common`) and the
-EC2 application (`ec2-app`) are planned for later iterations. This avoids moving the same source files twice.
+I chose a Maven Multi-Module structure because this project will support both a Java Lambda implementation and a
+lightweight Java HTTP server running on EC2. The `lambda-app` module is implemented now;
+shared application logic (`common`) and the EC2 application (`ec2-app`) are planned for 
+later iterations. This avoids moving the same source files twice.
 
 **Limitations:** The handler currently returns a static message. API Gateway connectivity and DynamoDB read/write
 operations have not yet been implemented or tested. The IAM policy is managed separately in the AWS Console, not by this
@@ -2244,7 +2246,8 @@ The final integration test confirmed that all three tiers communicate successful
 
 **Result:** Part A(b) has been implemented and tested successfully.
 
-The next development stage will explore an alternative Application Tier using a lightweight Java HTTP server on Amazon EC2, with networking
+The next development stage will explore an alternative Application Tier using a lightweight Java HTTP server on Amazon
+EC2, with networking
 and security resources defined through CloudFormation.
 
 ### Iteration 17 — Java Application Reuse for Amazon EC2
@@ -2436,11 +2439,11 @@ The refactored HTTP server responds correctly to health checks and rejects inval
 DynamoDB integration testing remains pending until the EC2 instance and its IAM role are deployed.
 
 **Validation**
-Maven packaging and local HTTP endpoint checks passed. Valid message read/write operations against DynamoDB from EC2 are pending until instance deployment and IAM configuration.
+Maven packaging and local HTTP endpoint checks passed. Valid message read/write operations against DynamoDB from EC2 are
+pending until instance deployment and IAM configuration.
 
 **Next Step**
 Define the EC2 network with AWS CloudFormation.
-
 
 ### Iteration 18 — EC2 Network Infrastructure
 
@@ -2496,7 +2499,6 @@ AWS CloudFormation template validation and deployment have not yet been confirme
 
 **Next Step**
 Add automated CloudFormation validation using GitHub Actions.
-
 
 ## 6. References
 
