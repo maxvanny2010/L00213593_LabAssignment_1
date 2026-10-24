@@ -2591,6 +2591,45 @@ They do not provide application-level authentication.
 **Next Step**
 Review the validation results and prepare IAM permissions for the EC2 application.
 
+### Iteration 21 — EC2 IAM Role and Instance Profile
+
+**Objective**
+
+Define least-privilege IAM permissions for the EC2 Java application using AWS CloudFormation.
+
+**Implementation**
+
+- Created `infrastructure/ec2/iam.yaml`.
+- Defined `ApplicationRole` using `AWS::IAM::Role` with a trust policy for the EC2 service.
+- Created a separate `AWS::IAM::ManagedPolicy` granting `dynamodb:Scan` and `dynamodb:PutItem` on the existing messages table only.
+- Attached the managed policy to the EC2 role.
+- Created `ApplicationInstanceProfile` using `AWS::IAM::InstanceProfile`.
+- Added CloudFormation Outputs for the IAM role ARN, managed policy ARN and instance profile name.
+- Extended GitHub Actions to validate all `infrastructure/ec2/*.yaml` templates.
+
+**Reference Implementation**
+
+I used the official AWS CloudFormation documentation for IAM Roles [[67]](#ref-67), Instance Profiles [[68]](#ref-68), and Managed Policies [[70]](#ref-70). AWS documents the use of roles to supply credentials to EC2 applications [[69]](#ref-69).
+
+**Design Decision**
+
+I selected an IAM Instance Profile so the Java application can use temporary credentials instead of storing AWS access keys in source code or configuration.
+
+A separate managed policy keeps permissions independent from the role definition. The permissions are restricted to the existing DynamoDB messages table. I removed the previously proposed S3 artifact access because the EC2 deployment will use Docker images built by GitHub Actions and stored in GitHub Container Registry (GHCR), rather than the separate Lambda artifacts bucket.
+
+The planned deployment uses GitHub Actions, Docker and AWS Systems Manager (SSM). Required SSM permissions and deployment integration will be added separately when the EC2 deployment is implemented; they are not included in this IAM template yet.
+
+**Testing and Validation**
+
+- The earlier IAM template passed local `cfn-lint` with exit code `0`.
+- The earlier IAM template passed `aws cloudformation validate-template`, which returned `CAPABILITY_IAM`.
+- Validation of the revised DynamoDB-only template: pending.
+- IAM infrastructure deployment: not performed.
+
+**Next Step**
+
+Validate the revised IAM template, review the Pull Request and prepare infrastructure deployment entirely through CloudFormation.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -2931,6 +2970,11 @@ at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intri
 Available at: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html
 (Accessed: 24 October 2026).
 
+<a id="ref-63"></a>
+**[63]** GitHub (n.d.) *Workflow syntax for GitHub Actions*.
+Available at: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
+(Accessed: 24 October 2026).
+
 <a id="ref-64"></a>
 **[64]** GitHub (n.d.) *actions/setup-python: Set up your GitHub Actions workflow with a specific version of Python*.
 Available at: https://github.com/actions/setup-python
@@ -2945,4 +2989,24 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 **[66]** Amazon Web Services (n.d.) *Fn::ImportValue*.
 Available
 at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-importvalue.html
+(Accessed: 24 October 2026).
+
+<a id="ref-67"></a>
+**[67]** Amazon Web Services (n.d.) *AWS::IAM::Role*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-role.html
+(Accessed: 24 October 2026).
+
+<a id="ref-68"></a>
+**[68]** Amazon Web Services (n.d.) *AWS::IAM::InstanceProfile*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-instanceprofile.html
+(Accessed: 24 October 2026).
+
+<a id="ref-69"></a>
+**[69]** Amazon Web Services (n.d.) *IAM roles for Amazon EC2*.
+Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
+(Accessed: 24 October 2026).
+<a id="ref-70"></a>
+**[70]** Amazon Web Services (n.d.) *AWS::IAM::ManagedPolicy*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-managedpolicy.html
 (Accessed: 24 October 2026).

@@ -29,7 +29,7 @@ jobs:
       - name: Install cfn-lint
         run: python -m pip install cfn-lint
 
-      - name: Validate EC2 network template
+      - name: Validate EC2 CloudFormation templates
         run: |
           cfn-lint --regions eu-west-1 \
-            -t infrastructure/ec2/network.yaml
+            -t infrastructure/ec2/*.yaml
