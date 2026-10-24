@@ -2348,6 +2348,30 @@ The application has been tested locally but has not yet been deployed to Amazon 
 
 Implement `GET /message` and `POST /message` using the shared `MessageService`, then define the EC2 infrastructure with AWS CloudFormation.
 
+#### Step 3 — Centralise Jackson Dependency Management
+
+**Objective**
+Manage the Jackson JSON library version centrally for both Java applications.
+
+**Implementation**
+
+- Added `jackson-databind` version `2.22.3` to the parent Maven `dependencyManagement`.
+- Removed the explicit Jackson version from `lambda-app`.
+- Added the Jackson dependency to `ec2-app` without specifying a version.
+- Kept the `common` module independent of Jackson because JSON processing belongs to the application entry points.
+
+**Design Decision**
+I decided to manage shared dependency versions in the parent Maven project to avoid maintaining the same version in multiple modules.
+
+Maven `dependencyManagement` provides dependency version management without automatically adding dependencies to every child module [[59]](#ref-59).
+
+**Validation**
+Maven compilation and packaging completed successfully for both applications.
+
+**Next Step**
+Implement GET and POST message endpoints in the EC2 HTTP server using the shared `MessageService`.
+
+
 ## 8. References
 
 <a id="ref-1"></a>
@@ -2661,4 +2685,10 @@ Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-
 **[57]** Oracle (n.d.) *HttpServer (Java SE 21 API Specification)*.
 Available at: https://docs.oracle.com/en/java/javase/21/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html
 (Accessed: 24 October 2026).
+
+<a id="ref-59"></a>
+**[59]** Apache Software Foundation (n.d.) *Introduction to the Dependency Mechanism*.
+Available at: https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html
+(Accessed: 24 October 2026).
+
 
