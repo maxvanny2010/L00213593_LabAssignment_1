@@ -1,0 +1,80 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  ATU CloudFormation Lab - EC2 instance infrastructure.
+
+Parameters:
+
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+    Description: EC2 instance type for the Java application
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Latest Amazon Linux 2023 x86_64 AMI
+
+Resources:
+
+  ApplicationInstance:
+    Type: AWS::EC2::Instance
+
+    Properties:
+
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref LatestAmiId
+
+      IamInstanceProfile:
+        Fn::ImportValue: ATU-EC2-ApplicationInstanceProfileName
+
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+
+          SubnetId:
+            Fn::ImportValue: ATU-EC2-PublicSubnetId
+
+          GroupSet:
+            - Fn::ImportValue: ATU-EC2-ApplicationSecurityGroupId
+
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 12
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+
+      Tags:
+        - Key: Name
+          Value: ATU-EC2-Java-Application
+
+        - Key: Project
+          Value: ATU-CloudFormation-Lab
+
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+
+  InstanceId:
+    Description: EC2 instance ID
+    Value: !Ref ApplicationInstance
+
+  PrivateIp:
+    Description: EC2 private IPv4 address
+    Value: !GetAtt ApplicationInstance.PrivateIp
+
+  PublicIp:
+    Description: EC2 public IPv4 address
+    Value: !GetAtt ApplicationInstance.PublicIp

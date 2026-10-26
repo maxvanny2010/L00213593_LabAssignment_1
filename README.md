@@ -3028,6 +3028,188 @@ CloudFormation.
 **Next Step**
 Define and document the EC2 instance infrastructure in a separate CloudFormation template.
 
+### Iteration 26 — EC2 Instance Deployment
+
+**Objective**
+Deploy an Amazon EC2 instance using AWS CloudFormation and reuse the network, Security Group and IAM Instance Profile
+created in previous iterations.
+
+The purpose of this iteration is to provision the EC2 infrastructure for the Java application. Operating system
+configuration and Docker installation will be implemented in later iterations.
+
+**Implementation**
+Created `infrastructure/ec2/instance.yaml` using the `AWS::EC2::Instance` CloudFormation resource [[78]](#ref-78).
+The template contains two parameters:
+
+- `InstanceType`: Defines the EC2 instance type, with `t3.micro` as the default and `t3.small` as an alternative.
+- `LatestAmiId`: Resolves an Amazon Linux 2023 AMI using an AWS Systems Manager public parameter.
+
+The `ApplicationInstance` resource defines the following configuration:
+
+- Instance type: `t3.micro`.
+- Operating system: Amazon Linux 2023.
+- AMI: Retrieved through the AWS Systems Manager public parameter [[84]](#ref-84).
+- Network: Existing public subnet imported from `ATU-EC2-Network`.
+- Security Group: Existing application Security Group imported from `ATU-EC2-SecurityGroup`.
+- IAM: Existing Instance Profile imported from `ATU-EC2-IAM`.
+- Public IPv4: Enabled explicitly on the primary network interface [[79]](#ref-79).
+- Storage: 12 GiB encrypted gp3 EBS root volume [[86]](#ref-86).
+- Metadata service: IMDSv2 required [[85]](#ref-85).
+- Resource tags: Name, Project and ManagedBy.
+- Outputs: Instance ID, private IP and public IP.
+
+**Design Decisions**
+
+**1. Separate CloudFormation Stack**
+I decided to create a separate CloudFormation stack named `ATU-EC2-Instance`.
+The network, Security Group and IAM infrastructure are managed by other stacks.
+Instead of creating duplicate resources, the EC2 template imports the existing CloudFormation Outputs using
+`Fn::ImportValue` [[66]](#ref-66).
+This allows the EC2 instance to reuse the infrastructure created in previous iterations.
+
+**2. Amazon Linux 2023**
+I selected Amazon Linux 2023 for the EC2 instance.
+The template uses the following public parameter:
+
+`/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`
+
+AWS provides public parameters that can be used to retrieve Amazon Linux AMI IDs for the selected
+Region [[84]](#ref-84).
+
+I selected this approach instead of hardcoding an AMI ID in the CloudFormation template.
+The AMI resolved during deployment was:
+
+`ami-058f31f10d44d9317`
+
+**3. Instance Type**
+I selected `t3.micro` as the default EC2 instance type.
+The application is a small educational project, so I decided to start with a small instance rather than allocate
+unnecessary computing resources.
+The `InstanceType` CloudFormation parameter also allows `t3.small` to be selected without editing the resource
+definition.
+AWS CloudFormation supports configuring the instance type through the `InstanceType` property of
+`AWS::EC2::Instance` [[78]](#ref-78).
+
+**4. Network and Security Group**
+The EC2 instance uses the existing public subnet and application Security Group.
+The network interface is configured with:
+
+- `DeviceIndex: '0'` for the primary network interface.
+- `AssociatePublicIpAddress: true` for public IPv4 assignment.
+- `DeleteOnTermination: true` to remove the network interface when the instance is terminated.
+- `SubnetId` imported from the network stack.
+- `GroupSet` imported from the Security Group stack.
+
+These properties are supported by `AWS::EC2::Instance NetworkInterface` [[79]](#ref-79).
+The existing public subnet does not assign public IPv4 addresses automatically. Therefore, public IPv4 assignment is
+configured explicitly on the instance network interface.
+The application Security Group does not allow inbound connections.
+Outbound connectivity is restricted to TCP port 443 by the existing Security Group configuration.
+This allows the instance to initiate HTTPS connections without opening SSH access.
+
+**5. IAM Instance Profile**
+The instance uses the IAM Instance Profile created in the previous IAM infrastructure iteration.
+The template imports:
+
+`ATU-EC2-ApplicationInstanceProfileName`
+
+The `IamInstanceProfile` property associates the existing Instance Profile with the EC2 instance [[68]](#ref-68).
+I selected this approach instead of creating a new IAM Role inside the EC2 instance template.
+This keeps IAM resource management separate from EC2 infrastructure deployment.
+
+**6. EBS Storage**
+The instance uses an encrypted Amazon EBS root volume.
+The `BlockDeviceMappings` configuration defines:
+
+- Device name: `/dev/xvda`.
+- Volume size: 12 GiB.
+- Volume type: `gp3`.
+- Encryption: Enabled.
+- Delete on termination: Enabled.
+
+The CloudFormation EBS properties support volume size, type, encryption and lifecycle configuration [[86]](#ref-86).
+I selected gp3 storage for this small application server.
+The `DeleteOnTermination` setting removes the root EBS volume when the EC2 instance is terminated, helping avoid
+retaining unused lab storage.
+
+**7. Instance Metadata Security**
+The instance uses:
+
+`HttpEndpoint: enabled`
+
+`HttpTokens: required`
+
+The `HttpTokens: required` setting requires IMDSv2 and disables IMDSv1 access [[85]](#ref-85).
+I selected this configuration to require session-based requests when accessing EC2 instance metadata.
+
+**8. CloudFormation Outputs**
+The template defines three Outputs:
+
+- `InstanceId`: Returns the EC2 instance ID using `!Ref`.
+- `PrivateIp`: Returns the private IPv4 address using `!GetAtt`.
+- `PublicIp`: Returns the public IPv4 address using `!GetAtt`.
+
+These outputs allow the deployed instance information to be retrieved using the AWS CLI without manually searching the
+AWS Console [[78]](#ref-78) [[72]](#ref-72).
+
+**Deployment**
+The EC2 template was validated using `cfn-lint` and AWS CloudFormation.
+The instance was deployed using:
+
+```powershell
+aws cloudformation deploy `
+  --template-file infrastructure/ec2/instance.yaml `
+  --stack-name ATU-EC2-Instance `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+AWS CloudFormation deployment commands are described in the official AWS CLI documentation [[71]](#ref-71).
+
+**Initial Deployment Result**
+The deployment completed successfully.
+CloudFormation returned:
+
+`Successfully created/updated stack - ATU-EC2-Instance`
+
+The stack reached:
+
+`CREATE_COMPLETE`
+
+**Testing and Verification**
+I checked the CloudFormation stack status and EC2 instance information using AWS CLI.
+The initial deployment returned the following results:
+
+| Property                            | Actual Result           |
+|-------------------------------------|-------------------------|
+| AWS Region                          | `eu-west-1`             |
+| CloudFormation Stack                | `ATU-EC2-Instance`      |
+| Initial Stack Status                | `CREATE_COMPLETE`       |
+| Instance ID                         | `i-050f1033713bc9105`   |
+| Instance Type                       | `t3.micro`              |
+| AMI ID                              | `ami-058f31f10d44d9317` |
+| Private IPv4                        | `10.20.1.43`            |
+| Public IPv4 at initial verification | `34.242.226.2`          |
+| Initial Instance State              | `running`               |
+
+The instance was subsequently stopped using the AWS CLI `ec2:StopInstances` operation.
+The StopInstances request was accepted by AWS and returned `stopping`.
+
+**CloudFormation Template Validation**
+The CloudFormation template passed the initial validation checks:
+
+- `cfn-lint`: Exit code `0`.
+- `aws cloudformation validate-template`: Exit code `0`.
+
+**Result**
+The Amazon EC2 instance was successfully provisioned using AWS CloudFormation.
+The EC2 infrastructure reuses the existing VPC networking, Security Group and IAM Instance Profile.
+The instance configuration includes encrypted EBS storage, IMDSv2 and CloudFormation Outputs for retrieving deployment
+information.
+
+**Next Step**
+Configure AWS Systems Manager Agent for remote instance management in a separate iteration.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -3473,5 +3655,16 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/permission-to-
 <a id="ref-84"></a>
 **[84]** Amazon Web Services (n.d.) *Find an Amazon Linux 2023 AMI*.
 Available at: https://docs.aws.amazon.com/linux/al2023/ug/get-started.html
+(Accessed: 26 October 2026).
+
+
+<a id="ref-85"></a>
+**[85]** Amazon Web Services (n.d.) *AWS::EC2::Instance MetadataOptions*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-instance-metadataoptions.html
+(Accessed: 26 October 2026).
+
+<a id="ref-86"></a>
+**[86]** Amazon Web Services (n.d.) *AWS::EC2::Instance Ebs*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-instance-ebs.html
 (Accessed: 26 October 2026).
 
