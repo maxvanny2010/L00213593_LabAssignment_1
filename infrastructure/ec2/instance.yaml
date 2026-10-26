@@ -1,4 +1,3 @@
-
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: >-
@@ -54,6 +53,14 @@ Resources:
             VolumeType: gp3
             Encrypted: true
             DeleteOnTermination: true
+
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euxo pipefail
+
+          systemctl enable --now amazon-ssm-agent
+          systemctl is-active --quiet amazon-ssm-agent
 
       Tags:
         - Key: Name

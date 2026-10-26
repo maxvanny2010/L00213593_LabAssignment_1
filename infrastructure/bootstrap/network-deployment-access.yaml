@@ -41,6 +41,7 @@ Resources:
               - cloudformation:ExecuteChangeSet
               - cloudformation:DeleteChangeSet
               - cloudformation:GetTemplateSummary
+              - cloudformation:ContinueUpdateRollback
             Resource:
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-Network/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-SecurityGroup/*
@@ -170,6 +171,12 @@ Resources:
               - ec2:StopInstances
               - ec2:StartInstances
             Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/i-050f1033713bc9105
+
+          - Sid: DescribeSSMManagedInstances
+            Effect: Allow
+            Action:
+              - ssm:DescribeInstanceInformation
+            Resource: "*"
 
 Outputs:
 

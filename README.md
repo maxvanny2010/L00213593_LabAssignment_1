@@ -3210,6 +3210,158 @@ information.
 **Next Step**
 Configure AWS Systems Manager Agent for remote instance management in a separate iteration.
 
+### Iteration 27 — AWS Systems Manager Agent Configuration and CloudFormation Recovery
+
+**Objective**
+Configure AWS Systems Manager Agent on the EC2 instance to enable remote management without opening inbound SSH access.
+Keep Docker installation for a separate iteration.
+
+**Implementation**
+Updated `infrastructure/ec2/instance.yaml` to configure the SSM Agent service through EC2 UserData:
+
+```bash
+#!/bin/bash
+set -euxo pipefail
+
+systemctl enable --now amazon-ssm-agent
+systemctl is-active --quiet amazon-ssm-agent
+```
+
+The script enables SSM Agent on boot, starts the service and verifies that it is active. The instance reuses the IAM
+Instance Profile created earlier, including the `AmazonSSMManagedInstanceCore` managed policy. AWS describes SSM Agent
+setup for Amazon Linux [[80]](#ref-80).
+In `infrastructure/bootstrap/network-deployment-access.yaml`, the `ManageEC2NetworkStack` statement was extended with
+`cloudformation:ContinueUpdateRollback` to support CloudFormation recovery. The `DescribeSSMManagedInstances` statement
+was added with `ssm:DescribeInstanceInformation` to allow the deployment user to check managed-instance connectivity.
+
+**Template Validation**
+
+```powershell
+cfn-lint --regions eu-west-1 `
+  -t infrastructure/ec2/instance.yaml
+```
+
+**Actual result:** Passed, exit code `0`.
+
+#### Troubleshooting — EC2 Update Failure and Stack Recovery
+
+**Problem**
+The initial CloudFormation update failed while changing the `ApplicationInstance` resource:
+
+```text
+UPDATE_FAILED — ApplicationInstance
+This instance 'i-050f1033713bc9105' is not in a state from which it can be stopped.
+```
+
+The rollback also failed and the stack reached `UPDATE_ROLLBACK_FAILED`.
+
+**Investigation**
+
+An `aws ec2 describe-instances` request showed that the original EC2 instance `i-050f1033713bc9105` was `terminated`.
+This instance could not be restarted.
+
+**IAM Permission Fix**
+The first rollback-recovery request failed with `AccessDenied` for `cloudformation:ContinueUpdateRollback`. I added this
+operation to the existing CloudFormation-managed bootstrap policy and successfully deployed the updated
+`ATU-EC2-Bootstrap` stack.
+
+**CloudFormation Recovery**
+
+```powershell
+aws cloudformation continue-update-rollback `
+  --stack-name ATU-EC2-Instance `
+  --resources-to-skip ApplicationInstance `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+The skipped resource required reconciliation with the template before continuing deployment. AWS documents recovery from
+`UPDATE_ROLLBACK_FAILED`, including resource skipping [[87]](#ref-87).
+I confirmed recovery with:
+
+```powershell
+aws cloudformation describe-stacks `
+  --stack-name ATU-EC2-Instance `
+  --region eu-west-1 `
+  --profile atu-lab `
+  --query "Stacks[0].StackStatus" `
+  --output text
+```
+
+**Actual result:** `UPDATE_ROLLBACK_COMPLETE`.
+A check of CloudFormation exports matching `ATU-EC2-Instance` returned no entries. `list-stack-resources` showed a
+single resource in the stack: `ApplicationInstance` (`AWS::EC2::Instance`).
+
+#### Replacement EC2 Deployment
+
+I deleted the old `ATU-EC2-Instance` stack and confirmed removal using `aws cloudformation wait stack-delete-complete` (
+exit code `0`). This operation did not delete the separate network, Security Group or IAM stacks.
+I then deployed the updated instance template:
+
+```powershell
+aws cloudformation deploy `
+  --template-file infrastructure/ec2/instance.yaml `
+  --stack-name ATU-EC2-Instance `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**Actual result:** `Successfully created/updated stack - ATU-EC2-Instance`.
+CloudFormation verification returned:
+
+| Property                    | Verified result       |
+|-----------------------------|-----------------------|
+| Stack                       | `ATU-EC2-Instance`    |
+| Stack status                | `CREATE_COMPLETE`     |
+| New EC2 instance ID         | `i-0a86cb75e6b6d65b4` |
+| Private IPv4                | `10.20.1.205`         |
+| Public IPv4 at verification | `3.250.202.78`        |
+| AWS Region                  | `eu-west-1`           |
+
+#### SSM Agent Permission and Connectivity Verification
+
+The first call to `ssm:DescribeInstanceInformation` returned `AccessDenied`. I added the following action to the IAM
+bootstrap policy:
+
+```yaml
+- Sid: DescribeSSMManagedInstances
+  Effect: Allow
+  Action:
+    - ssm:DescribeInstanceInformation
+  Resource: "*"
+```
+
+The bootstrap stack update succeeded. The first retry still returned `AccessDenied`. After refreshing the `atu-lab`
+session using `aws logout` and `aws login`, the request succeeded.
+
+```powershell
+aws ssm describe-instance-information `
+  --filters "Key=InstanceIds,Values=i-0a86cb75e6b6d65b4" `
+  --region eu-west-1 `
+  --profile atu-lab `
+  --query "InstanceInformationList[*].[InstanceId,PingStatus,AgentVersion]" `
+  --output table
+```
+
+**Actual results:**
+
+| Check             | Verified result       |
+|-------------------|-----------------------|
+| EC2 instance ID   | `i-0a86cb75e6b6d65b4` |
+| SSM Ping Status   | `Online`              |
+| SSM Agent version | `3.3.5390.0`          |
+
+The `Online` result confirms that the replacement instance is registered and communicating with AWS Systems Manager. No
+inbound SSH rule was required [[80]](#ref-80).
+
+**Result: Passed**
+The EC2 stack was recovered, the terminated instance was replaced through CloudFormation, and the replacement instance
+was verified as `Online` in AWS Systems Manager. The initial update failure and subsequent IAM access issues were
+resolved.
+
+**Next Step**
+Install and verify Docker on the EC2 instance in a separate iteration.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -3657,14 +3809,20 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/permission-to-
 Available at: https://docs.aws.amazon.com/linux/al2023/ug/get-started.html
 (Accessed: 26 October 2026).
 
-
 <a id="ref-85"></a>
 **[85]** Amazon Web Services (n.d.) *AWS::EC2::Instance MetadataOptions*.
-Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-instance-metadataoptions.html
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-instance-metadataoptions.html
 (Accessed: 26 October 2026).
 
 <a id="ref-86"></a>
 **[86]** Amazon Web Services (n.d.) *AWS::EC2::Instance Ebs*.
-Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-instance-ebs.html
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-instance-ebs.html
 (Accessed: 26 October 2026).
 
+<a id="ref-87"></a>
+**[87]** Amazon Web Services (n.d.) *Continue rolling back an update*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-continueupdaterollback.html
+(Accessed: 26 October 2026).
