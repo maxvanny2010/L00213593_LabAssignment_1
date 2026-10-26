@@ -40,9 +40,11 @@ Resources:
               - cloudformation:DescribeChangeSet
               - cloudformation:ExecuteChangeSet
               - cloudformation:DeleteChangeSet
+              - cloudformation:GetTemplateSummary
             Resource:
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-Network/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-SecurityGroup/*
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-Instance/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-IAM/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
 
@@ -139,6 +141,35 @@ Resources:
             Condition:
               StringEquals:
                 iam:PassedToService: ec2.amazonaws.com
+
+          - Sid: ManageApplicationEC2Instance
+            Effect: Allow
+            Action:
+              - ec2:RunInstances
+              - ec2:TerminateInstances
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeImages
+              - ec2:DescribeInstanceTypes
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeVolumes
+              - ec2:DescribeSubnets
+              - ec2:DescribeSecurityGroups
+              - ec2:CreateTags
+              - ec2:DeleteTags
+            Resource: "*"
+          - Sid: ReadAmazonLinuxAmiParameter
+            Effect: Allow
+            Action:
+              - ssm:GetParameters
+            Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::parameter/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+          - Sid: ControlApplicationInstanceState
+            Effect: Allow
+            Action:
+              - ec2:StopInstances
+              - ec2:StartInstances
+            Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/i-050f1033713bc9105
 
 Outputs:
 

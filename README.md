@@ -2931,19 +2931,102 @@ AWS Console.
 **Next Step**
 Prepare and deploy the EC2 application IAM Role and Instance Profile.
 
-
 **IAM Permission Troubleshooting — PassRole**
-The initial deployment of `ATU-EC2-IAM` failed because the deployment user `atu-devops-lab` did not have the `iam:PassRole` permission.
+The initial deployment of `ATU-EC2-IAM` failed because the deployment user `atu-devops-lab` did not have the
+`iam:PassRole` permission.
 
 The failure occurred while CloudFormation was configuring the IAM Role and Instance Profile.
 AWS CloudFormation rolled back the stack, which reached `ROLLBACK_COMPLETE`.
 I updated the existing IAM bootstrap template with a new `PassApplicationRoleToEC2` statement.
-The statement grants `iam:PassRole` only for project IAM roles matching `ATU-EC2-IAM-*` and restricts the target service to `ec2.amazonaws.com`.
+The statement grants `iam:PassRole` only for project IAM roles matching `ATU-EC2-IAM-*` and restricts the target service
+to `ec2.amazonaws.com`.
 
-I redeployed the `ATU-EC2-Bootstrap` stack through CloudFormation, deleted the failed IAM stack and repeated the deployment using `atu-lab`.
+I redeployed the `ATU-EC2-Bootstrap` stack through CloudFormation, deleted the failed IAM stack and repeated the
+deployment using `atu-lab`.
 
 **Result:** Passed.
 
+### Iteration 25 — EC2 Deployment IAM Permissions
+
+**Objective**
+Extend the existing IAM bootstrap policy to allow the `atu-devops-lab` user to deploy and manage an Amazon EC2 instance
+using AWS CloudFormation.
+
+**Implementation**
+Updated `infrastructure/bootstrap/network-deployment-access.yaml`.
+The existing `NetworkDeploymentPolicy` is an AWS IAM Managed Policy attached to the `ATU-DevOps-Lab-Developers` group.
+The policy was extended with the following permissions:
+
+**1. CloudFormation Stack Management**
+Added the `ATU-EC2-Instance` stack to the permitted CloudFormation resources.
+The policy allows creating, updating, describing and deleting the project CloudFormation stack.
+The `cloudformation:GetTemplateSummary` action was also added to support subsequent deployments.
+AWS CloudFormation uses Change Sets to prepare and execute infrastructure changes [[81]](#ref-81).
+
+**2. EC2 Resource Management**
+Added the `ManageApplicationEC2Instance` statement.
+The statement grants permissions including:
+
+- `ec2:RunInstances`
+- `ec2:TerminateInstances`
+- `ec2:DescribeInstances`
+- `ec2:DescribeInstanceStatus`
+- `ec2:DescribeImages`
+- `ec2:DescribeNetworkInterfaces`
+- `ec2:DescribeVolumes`
+- `ec2:CreateTags`
+- `ec2:DeleteTags`
+
+The `RunInstances` operation requires permissions for the instance and related resources, including the AMI, network
+interfaces, subnet and storage [[82]](#ref-82).
+
+**3. IAM Role Assignment**
+The existing `PassApplicationRoleToEC2` statement allows the deployment user to pass the project application IAM Role to
+the EC2 service.
+The permission is restricted to project roles matching `ATU-EC2-IAM-*` and to the `ec2.amazonaws.com` service.
+AWS requires `iam:PassRole` when launching an EC2 instance with an IAM Role [[83]](#ref-83).
+
+**4. Amazon Linux AMI Parameter**
+Added the `ReadAmazonLinuxAmiParameter` statement.
+It grants `ssm:GetParameters` for the public Amazon Linux 2023 AMI parameter.
+This allows CloudFormation to resolve the AMI ID without hardcoding it in the instance template [[84]](#ref-84).
+
+**5. EC2 Instance State Management**
+Added the `ControlApplicationInstanceState` statement.
+It allows:
+
+- `ec2:StartInstances`
+- `ec2:StopInstances`
+
+The permissions are restricted to the deployed project instance:
+
+`i-050f1033713bc9105`
+
+AWS supports resource-level control for EC2 instance management actions [[82]](#ref-82).
+
+**Design Decisions**
+I extended the existing CloudFormation-managed IAM policy instead of assigning AdministratorAccess to the deployment
+user.
+The IAM Role assignment permission is restricted to the application role and EC2 service.
+Start and Stop permissions are restricted to the specific application instance.
+Some EC2 deployment actions currently use `Resource: "*"`. These permissions should be reviewed and restricted further
+before production use.
+
+**Testing and Validation**
+
+- CloudFormation template validation using `cfn-lint`: Passed.
+- IAM bootstrap stack deployment: Successful.
+- CloudFormation stack: `ATU-EC2-Bootstrap`.
+- EC2 deployment permissions: Verified through successful EC2 creation.
+- Public AMI parameter access: Verified.
+- Instance Stop permission: Verified through a successful `StopInstances` API request.
+
+**Result: Passed**
+The deployment IAM user has the permissions required to create and manage the project EC2 infrastructure using AWS
+CloudFormation.
+
+**Next Step**
+Define and document the EC2 instance infrastructure in a separate CloudFormation template.
 
 ## 6. References
 
@@ -3355,3 +3438,40 @@ Available at: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_i
 **[76]** Amazon Web Services (n.d.) *Example policies to control access to the Amazon EC2 console*.
 Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-policies-ec2-console.html
 (Accessed: 24 October 2026).
+
+<a id="ref-78"></a>
+**[78]** Amazon Web Services (n.d.) *AWS::EC2::Instance*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ec2-instance.html
+(Accessed: 24 October 2026).
+
+<a id="ref-79"></a>
+**[79]** Amazon Web Services (n.d.) *AWS::EC2::Instance NetworkInterface*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-instance-networkinterface.html
+(Accessed: 24 October 2026).
+
+<a id="ref-80"></a>
+**[80]** Amazon Web Services (n.d.) *Troubleshooting SSM Agent*.
+Available at: https://docs.aws.amazon.com/systems-manager/latest/userguide/troubleshooting-ssm-agent.html
+(Accessed: 24 October 2026).
+
+<a id="ref-81"></a>
+**[81]** Amazon Web Services (n.d.) *Update CloudFormation stacks using change sets*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html
+(Accessed: 26 October 2026).
+
+<a id="ref-82"></a>
+**[82]** Amazon Web Services (n.d.) *Example policies to control access to the Amazon EC2 API*.
+Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ExamplePolicies_EC2.html
+(Accessed: 26 October 2026).
+
+<a id="ref-83"></a>
+**[83]** Amazon Web Services (n.d.) *Grant permissions to attach an IAM role to an instance*.
+Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/permission-to-pass-iam-roles.html
+(Accessed: 26 October 2026).
+
+<a id="ref-84"></a>
+**[84]** Amazon Web Services (n.d.) *Find an Amazon Linux 2023 AMI*.
+Available at: https://docs.aws.amazon.com/linux/al2023/ug/get-started.html
+(Accessed: 26 October 2026).
+
