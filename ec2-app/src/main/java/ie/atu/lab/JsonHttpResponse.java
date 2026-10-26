@@ -25,11 +25,13 @@ public final class JsonHttpResponse {
         byte[] bytes = JSON.writeValueAsBytes(body);
 
         exchange.getResponseHeaders().set(
-                "Content-Type", "application/json; charset=UTF-8"
+                AppConstants.Http.CONTENT_TYPE,
+                AppConstants.Http.APPLICATION_JSON_UTF8
         );
 
         exchange.getResponseHeaders().set(
-                "Cache-Control", "no-store"
+                AppConstants.Http.CACHE_CONTROL,
+                AppConstants.Http.NO_STORE
         );
 
         exchange.sendResponseHeaders(status, bytes.length);

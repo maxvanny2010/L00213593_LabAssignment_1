@@ -3490,6 +3490,36 @@ creation in CloudFormation.
 
 Use the verified Docker Engine to build and run the application container in a separate iteration.
 
+### Java Application Improvements
+
+#### Centralised Shared Constants
+
+**Objective**
+
+Improve code consistency and maintainability across the Lambda and EC2 Java applications by centralising configuration values and reusable constants.
+
+**Implementation**
+
+- Extended `AppConstants.java` in the shared `common` Maven module.
+- Centralised HTTP methods, status codes, headers and API routes.
+- Added application configuration defaults, JSON field names, error messages, logging messages and request limits.
+- Updated `HealthHandler`, `MessageHttpHandler`, `MessageHttpServer` and `JsonHttpResponse` to use shared constants.
+- Removed duplicated hardcoded values without changing the existing application logic.
+
+**Design Decision**
+
+I decided to maintain reusable constants in the `common` module because both Java applications depend on it. This follows the DRY (Don't Repeat Yourself) principle and reduces the risk of inconsistent values across the project.
+
+**Testing and Validation**
+
+Executed:
+
+`mvn clean verify`
+
+**Actual Result:** `BUILD SUCCESS`.
+
+All Maven modules (`common`, `ec2-app` and `lambda-app`) built successfully.
+
 ## 6. References
 
 <a id="ref-1"></a>

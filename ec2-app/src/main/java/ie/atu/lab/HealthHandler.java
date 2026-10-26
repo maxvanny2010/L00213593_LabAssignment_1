@@ -10,20 +10,39 @@ public class HealthHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        if (!"/health".equals(exchange.getRequestURI().getPath())) {
-            JsonHttpResponse.send(exchange, 404,
-                    Map.of("error", "Not found"));
+
+        if (!AppConstants.Routes.HEALTH.equals(exchange.getRequestURI().getPath())) {
+            JsonHttpResponse.send(
+                    exchange,
+                    AppConstants.Http.NOT_FOUND,
+                    Map.of(AppConstants.Fields.ERROR, AppConstants.Errors.NOT_FOUND)
+            );
             return;
         }
 
-        if (!"GET".equals(exchange.getRequestMethod())) {
-            exchange.getResponseHeaders().set("Allow", "GET");
-            JsonHttpResponse.send(exchange, 405,
-                    Map.of("error", "Method not allowed"));
+        if (!AppConstants.Http.GET.equals(exchange.getRequestMethod())) {
+            exchange.getResponseHeaders().set(
+                    AppConstants.Http.ALLOW,
+                    AppConstants.Http.GET
+            );
+
+            JsonHttpResponse.send(
+                    exchange,
+                    AppConstants.Http.METHOD_NOT_ALLOWED,
+                    Map.of(AppConstants.Fields.ERROR, AppConstants.Errors.METHOD_NOT_ALLOWED)
+            );
             return;
         }
 
-        JsonHttpResponse.send(exchange, 200,
-                Map.of("status", "UP", "service", "ec2-app"));
+        JsonHttpResponse.send(
+                exchange,
+                AppConstants.Http.OK,
+                Map.of(
+                        AppConstants.Fields.STATUS,
+                        AppConstants.Defaults.HEALTH_STATUS,
+                        AppConstants.Fields.SERVICE,
+                        AppConstants.Defaults.SERVICE_NAME
+                )
+        );
     }
 }
