@@ -178,6 +178,25 @@ Resources:
               - ssm:DescribeInstanceInformation
             Resource: "*"
 
+          - Sid: SendSSMShellDocument
+            Effect: Allow
+            Action:
+              - ssm:SendCommand
+            Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+
+          - Sid: SendSSMCommandToApplicationInstance
+            Effect: Allow
+            Action:
+              - ssm:SendCommand
+            Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/i-0a86cb75e6b6d65b4
+
+          - Sid: ReadSSMCommandResults
+            Effect: Allow
+            Action:
+              - ssm:GetCommandInvocation
+              - ssm:ListCommandInvocations
+            Resource: "*"
+
 Outputs:
 
   NetworkDeploymentPolicyArn:

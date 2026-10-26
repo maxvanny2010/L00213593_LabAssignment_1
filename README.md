@@ -3362,6 +3362,134 @@ resolved.
 **Next Step**
 Install and verify Docker on the EC2 instance in a separate iteration.
 
+### Iteration 28 — Install and Verify Docker Using AWS Systems Manager Run Command
+
+**Objective**
+
+Install Docker Engine on the existing Amazon Linux 2023 EC2 instance and verify that the Docker service is running and
+enabled at boot. Use AWS Systems Manager Run Command rather than SSH, avoiding inbound access changes, EC2 replacement
+and an EC2 CloudFormation stack update. AWS documents Run Command as a way to execute commands on managed
+instances [[89]](#ref-89).
+
+**Implementation**
+
+Created `infrastructure/ec2/scripts/install-docker.sh`:
+
+```bash
+#!/bin/bash
+set -euxo pipefail
+
+dnf install -y docker
+
+systemctl enable --now docker
+
+systemctl is-active --quiet docker
+
+docker info >/dev/null
+docker --version
+```
+
+Amazon Linux 2023 uses `dnf` for package management [[88]](#ref-88). The script installs Docker, enables and starts the
+Docker systemd service, checks its active state, and verifies that the Docker CLI can communicate with Docker Engine.
+
+Updated the `ATU-EC2-Bootstrap` CloudFormation stack through `infrastructure/bootstrap/network-deployment-access.yaml`
+to grant the deployment IAM group the permissions needed for this iteration:
+
+- `ssm:SendCommand` on the AWS-managed document `AWS-RunShellScript`.
+- `ssm:SendCommand` on the specific EC2 instance `i-0a86cb75e6b6d65b4`.
+- `ssm:GetCommandInvocation` and `ssm:ListCommandInvocations` to retrieve command execution results.
+
+Permissions for the SSM document and target instance are scoped separately. AWS documents access controls for Run
+Command [[90]](#ref-90). The Bootstrap stack update completed successfully.
+
+**Deployment**
+
+The local Bash script was submitted to AWS Systems Manager as the `commands` parameter for the `AWS-RunShellScript`
+document. The parameters were stored temporarily in a UTF-8 JSON file without a byte order mark (BOM), supplied using
+the AWS CLI `file://` syntax. The temporary JSON file is not part of the committed infrastructure source.
+
+```powershell
+$script = [System.IO.File]::ReadAllText(
+    (Join-Path (Get-Location) 'infrastructure/ec2/scripts/install-docker.sh')
+)
+
+$params = @{ commands = @($script) } | ConvertTo-Json -Depth 3
+
+[System.IO.File]::WriteAllText(
+    (Join-Path (Get-Location) 'ssm-docker-parameters.json'),
+    $params,
+    [System.Text.UTF8Encoding]::new($false)
+)
+
+$commandId = aws ssm send-command `
+    --instance-ids i-0a86cb75e6b6d65b4 `
+    --document-name AWS-RunShellScript `
+    --parameters file://ssm-docker-parameters.json `
+    --comment 'Install Docker on EC2' `
+    --region eu-west-1 `
+    --profile atu-lab `
+    --query 'Command.CommandId' `
+    --output text
+```
+
+The first attempt to prepare SSM parameters failed locally because the JSON file contained a UTF-8 BOM and an empty
+`commands` array. After populating the Bash script, a second JSON serialization included PowerShell file-provider
+metadata; this was corrected by reading the script as a plain string with `[System.IO.File]::ReadAllText()` and writing
+the JSON without BOM. Neither of these parameter-format errors resulted in a Docker installation command being run on
+EC2.
+
+The valid installation command was accepted by SSM with Command ID `d4648041-0f89-4b18-a4a1-db9c236f5d62`. Its initial
+state was `InProgress`, followed by `Success`.
+
+**Verification**
+
+The installation command was checked using `aws ssm get-command-invocation`. Actual results:
+
+| Check                                           | Verified result                        |
+|-------------------------------------------------|----------------------------------------|
+| AWS Region                                      | `eu-west-1`                            |
+| EC2 instance                                    | `i-0a86cb75e6b6d65b4`                  |
+| Installation SSM Command ID                     | `d4648041-0f89-4b18-a4a1-db9c236f5d62` |
+| Installation status                             | `Success`                              |
+| Installation response code                      | `0`                                    |
+| Docker package installed                        | `docker-25.0.18-1.amzn2023.0.2`        |
+| Docker CLI version reported during installation | `25.0.14`                              |
+
+An independent verification command was then run through SSM using:
+
+```bash
+systemctl is-active docker
+systemctl is-enabled docker
+docker version --format '{{.Server.Version}}'
+```
+
+Its actual result was:
+
+```text
+Status: Success
+ResponseCode: 0
+Output:
+active
+enabled
+25.0.18
+```
+
+The independent check establishes that Docker Engine version `25.0.18` is running and Docker is enabled to start on
+boot. The CLI version reported during installation was `25.0.14`; the server version was verified separately as
+`25.0.18`. SSM returned tracing and service messages in `StandardErrorContent` during installation, but the installation
+completed successfully with response code `0`.
+
+**Result: Passed**
+
+Docker was installed on the existing EC2 instance using AWS Systems Manager Run Command. Its systemd service is active
+and enabled, and the Docker daemon was successfully queried. The EC2 CloudFormation stack was not changed during this
+iteration; Docker installation is therefore an operational configuration of the current instance, not yet part of EC2
+creation in CloudFormation.
+
+**Next Step**
+
+Use the verified Docker Engine to build and run the application container in a separate iteration.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -3825,4 +3953,19 @@ at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-p
 **[87]** Amazon Web Services (n.d.) *Continue rolling back an update*.
 Available
 at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-continueupdaterollback.html
+(Accessed: 26 October 2026).
+
+<a id="ref-88"></a>
+**[88]** Amazon Web Services (n.d.) *Package management in Amazon Linux 2023*.
+Available at: https://docs.aws.amazon.com/linux/al2023/ug/package-management.html
+(Accessed: 26 October 2026).
+
+<a id="ref-89"></a>
+**[89]** Amazon Web Services (n.d.) *Running commands using Systems Manager Run Command*.
+Available at: https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command.html
+(Accessed: 26 October 2026).
+
+<a id="ref-90"></a>
+**[90]** Amazon Web Services (n.d.) *Control access to Run Command*.
+Available at: https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command-setting-up.html
 (Accessed: 26 October 2026).
