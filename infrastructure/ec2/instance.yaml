@@ -59,8 +59,20 @@ Resources:
           #!/bin/bash
           set -euxo pipefail
 
+          # Enable AWS Systems Manager Agent
           systemctl enable --now amazon-ssm-agent
           systemctl is-active --quiet amazon-ssm-agent
+
+          # Install Docker Engine
+          dnf install -y docker
+
+          # Enable and start Docker
+          systemctl enable --now docker
+
+          # Verify Docker installation
+          systemctl is-active --quiet docker
+          systemctl is-enabled --quiet docker
+          docker info >/dev/null
 
       Tags:
         - Key: Name

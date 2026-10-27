@@ -3918,6 +3918,62 @@ The Docker image is downloaded from Amazon ECR using IAM-based authentication wi
 **Next Step:**
 Automate Docker installation through CloudFormation UserData and implement repeatable container deployment using AWS Systems Manager.
 
+### Iteration 29.6.2 — Automated Docker Installation Using EC2 UserData
+
+**Objective:**
+Automate Docker Engine installation and initial configuration when a new Amazon EC2 instance is provisioned through AWS CloudFormation.
+
+**Implementation:**
+
+Updated `infrastructure/ec2/instance.yaml` to extend the existing EC2 UserData configuration.
+
+The UserData script performs the following operations:
+
+1. Enables and starts AWS Systems Manager Agent.
+2. Installs Docker Engine using the Amazon Linux 2023 `dnf` package manager.
+3. Enables and starts the Docker systemd service.
+4. Verifies that Docker is active and enabled.
+5. Verifies communication with Docker Engine using `docker info`.
+
+**Reference Implementation:**
+AWS EC2 UserData documentation explains how shell scripts can automate instance configuration during initial launch [[96]](#ref-96).
+
+The implementation uses the `UserData` property of the `AWS::EC2::Instance` CloudFormation resource [[97]](#ref-97).
+
+Amazon Linux 2023 uses `dnf` for package management [[98]](#ref-98).
+
+**Design Decision:**
+I decided to separate EC2 initialisation from application deployment.
+CloudFormation UserData is responsible for preparing the operating system and installing Docker.
+GitHub Actions and AWS Systems Manager will be responsible for deploying updated application containers.
+This approach allows new EC2 instances to receive Docker automatically without requiring a separate manual installation command.
+
+**Security Considerations:**
+
+- No inbound SSH access is required.
+- The existing EC2 IAM Instance Profile is preserved.
+- No permanent AWS credentials are stored in UserData.
+- Docker installation is managed through infrastructure configuration.
+- Application deployment remains separate from operating system initialisation.
+
+**Testing and Validation:**
+
+- [x] Docker installation was previously verified on the existing EC2 instance using AWS Systems Manager.
+- [x] Docker Engine was confirmed active and enabled.
+- [x] Updated CloudFormation template validation is passed.
+- [ ] Automatic Docker installation on a newly created EC2 instance has not yet been tested.
+
+**Current Limitations:**
+The existing EC2 instance was configured previously using AWS Systems Manager Run Command.
+The updated UserData configuration has not yet been deployed to a replacement instance.
+CloudFormation UserData changes may require interruption of an existing EC2 instance and do not automatically rerun the initialisation script.
+
+**Result:**
+The CloudFormation template has been extended to automate Docker installation during future EC2 instance creation.Runtime verification of the new UserData configuration remains pending.
+
+**Next Step:**
+Implement a reusable Docker container deployment script and integrate it with AWS Systems Manager.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -4422,4 +4478,17 @@ Available at: https://github.com/docker/build-push-action
 **[95]** Docker (n.d.) *Docker Setup Buildx Action*.
 Available at: https://github.com/docker/setup-buildx-action
 (Accessed: 27 October 2026).
+<a id="ref-96"></a>
+**[96]** Amazon Web Services (n.d.) *Run commands when you launch an EC2 instance with user data input*.
+Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
+(Accessed: 27 October 2026).
 
+<a id="ref-97"></a>
+**[97]** Amazon Web Services (n.d.) *AWS::EC2::Instance — AWS CloudFormation Template Reference*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ec2-instance.html
+(Accessed: 27 October 2026).
+
+<a id="ref-98"></a>
+**[98]** Amazon Web Services (n.d.) *Package management in Amazon Linux 2023*.
+Available at: https://docs.aws.amazon.com/linux/al2023/ug/package-management.html
+(Accessed: 27 October 2026).
