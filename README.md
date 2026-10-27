@@ -3996,10 +3996,53 @@ updating the `ATU-GitHub-OIDC` stack. The role's remaining ECR publishing policy
 
 **Conclusion:**
 
-The lab demonstrates CloudFormation-managed AWS infrastructure, IAM access control, containerisation, image publication
+The lab demonstrates CloudFormation-managed AWS infrastructure, IAM access control, containerization, image publication
 through a basic CI pipeline, and a working Java application on EC2 connected to DynamoDB. The revised UserData is
 included as a reproducible first-boot configuration proposal; automated application deployment and rollback remain
 optional future enhancements.
+
+### Iteration 29.7.1 — Simplified EC2 Application Bootstrap Using CloudFormation
+
+**Objective:**
+Simplify the EC2 UserData script while retaining automated Docker installation,
+container startup and application verification.
+
+**Implementation:**
+
+- Added `DockerImageUri` and `DynamoTableName` CloudFormation parameters.
+- Configured Docker image download from a public container registry.
+- Removed private ECR authentication from the initial EC2 bootstrap.
+- Preserved container security restrictions and resource limits.
+- Added HTTP checks for application startup and DynamoDB connectivity.
+
+**Testing and Validation:**
+
+- [x] Updated CloudFormation template passed local `cfn-lint` validation.
+- [x] Existing container configuration verified through AWS Systems Manager.
+- [ ] Simplified UserData tested on a newly provisioned EC2 instance.
+- [ ] Public GHCR image published and verified.
+
+**Current Limitation:**
+The simplified bootstrap configuration has not yet been tested on a new EC2 instance.
+The public Docker image must be published before deployment.
+
+**Reference Implementation:**
+I used the official AWS CloudFormation tutorial *Deploy applications on Amazon EC2* as the primary
+reference [[98]](#ref-98).
+
+The tutorial demonstrates how CloudFormation can configure application software on an EC2 instance during provisioning.
+I adapted this approach to install Docker, download a container image and start my Java application using EC2 UserData.
+
+The implementation also follows the official AWS documentation for EC2 UserData [[96]](#ref-96), CloudFormation
+`Fn::Sub` [[30]](#ref-30), EC2 instance configuration [[97]](#ref-97), and Amazon Linux 2023 package
+management [[88]](#ref-88).
+
+**Design Decision:**
+I selected a Bash script embedded in CloudFormation UserData to automate the initial application deployment.
+The main focus of this lab is Infrastructure as Code using AWS CloudFormation. Therefore, the implementation does not
+include a separate continuous deployment workflow for updating existing EC2 containers after GitHub pushes.
+
+This keeps the deployment process simple while demonstrating automated EC2 provisioning and application initialisation.
 
 ## 6. References
 
@@ -4513,4 +4556,9 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
 <a id="ref-97"></a>
 **[97]** Amazon Web Services (n.d.) *AWS::EC2::Instance — AWS CloudFormation Template Reference*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ec2-instance.html
+(Accessed: 27 October 2026).
+<a id="ref-98"></a>
+
+**[98]** Amazon Web Services (n.d.) *Deploy applications on Amazon EC2 — AWS CloudFormation User Guide*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/deploying.applications.html
 (Accessed: 27 October 2026).

@@ -18,6 +18,15 @@ Parameters:
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
     Description: Latest Amazon Linux 2023 x86_64 AMI
 
+  DockerImageUri:
+    Type: String
+    Default: ghcr.io/maxvanny2010/atu-ec2-app:placeholder
+    Description: Full Docker image URI including tag or digest
+  DynamoTableName:
+      Type: String
+      Default: ATU-Three-Tier-messages
+      Description: DynamoDB table used by the EC2 application
+
 Resources:
 
   ApplicationInstance:
@@ -55,24 +64,51 @@ Resources:
             DeleteOnTermination: true
 
       UserData:
-        Fn::Base64: |
-          #!/bin/bash
-          set -euxo pipefail
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash
+            set -euxo pipefail
 
-          # Enable AWS Systems Manager Agent
-          systemctl enable --now amazon-ssm-agent
-          systemctl is-active --quiet amazon-ssm-agent
+            # Start SSM Agent
+            systemctl enable --now amazon-ssm-agent
 
-          # Install Docker Engine
-          dnf install -y docker
+            # Install Docker
+            dnf install -y docker
+            systemctl enable --now docker
 
-          # Enable and start Docker
-          systemctl enable --now docker
+            # Download application image
+            docker pull "${DockerImageUri}"
 
-          # Verify Docker installation
-          systemctl is-active --quiet docker
-          systemctl is-enabled --quiet docker
-          docker info >/dev/null
+            # Start Java application
+            docker run -d \
+              --name atu-ec2-app \
+              --restart unless-stopped \
+              --user 10001:10001 \
+              --cap-drop ALL \
+              --security-opt no-new-privileges \
+              --read-only \
+              --tmpfs /tmp:rw,nosuid,nodev,size=32m \
+              --memory 256m \
+              --cpus 0.5 \
+              --pids-limit 128 \
+              -p 127.0.0.1:8080:8080 \
+              -e HOST=0.0.0.0 \
+              -e PORT=8080 \
+              -e AWS_REGION="${AWS::Region}" \
+              -e TABLE_NAME="${DynamoTableName}" \
+              "${DockerImageUri}"
+
+            # Verify application startup
+            for attempt in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8080/health; then
+                break
+              fi
+              sleep 2
+            done
+
+            # Verify application and DynamoDB
+            curl -fsS http://127.0.0.1:8080/health
+            curl -fsS http://127.0.0.1:8080/message
 
       Tags:
         - Key: Name
