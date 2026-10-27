@@ -3708,6 +3708,41 @@ GitHub OIDC infrastructure was successfully provisioned and verified using AWS C
 The IAM Role and OIDC Provider are ready for integration with GitHub Actions.
 Actual role assumption from GitHub Actions has not yet been tested.
 
+
+### Iteration 29.5 — Automated Docker Image Publication to Amazon ECR
+
+**Objective:** Build and verify the Java application and Docker image on one GitHub Actions runner, then publish the verified image to Amazon ECR only for pushes to `master`.
+
+**Implementation:**
+
+- Updated `.github/workflows/docker-deploy.yml` to use a single `build-and-publish` job on `ubuntu-latest`. Its steps run sequentially; an unsuccessful Maven build or Docker build prevents the normal publication steps from running. GitHub Actions workflow syntax and job steps are documented in [[63]](#ref-63).
+- Used `actions/checkout@v4` and `actions/setup-java@v4` to prepare the Java 21 Maven build, followed by `mvn -B clean verify`.
+- Configured Docker Buildx using `docker/setup-buildx-action@v3` [[95]](#ref-95).
+- Used `docker/build-push-action@v6` to build the project Dockerfile with `load: true`, `push: false`, and the local tag `atu-ec2-app:${{ github.sha }}`. The `load` option makes the resulting image available to the Docker daemon on the same runner [[94]](#ref-94).
+- For pushes to `master` only, used `aws-actions/configure-aws-credentials@v4` to assume the existing `ATU-GitHub-Actions-ECR` IAM Role using GitHub OIDC. The job requests `id-token: write` to obtain an OIDC token; the role's trust policy independently restricts the permitted repository and branch [[91]](#ref-91) [[92]](#ref-92).
+- Used `aws-actions/amazon-ecr-login@v2` to authenticate Docker to Amazon ECR [[93]](#ref-93).
+- Used `docker tag` and `docker push` to publish the **already built local image** to `897068845214.dkr.ecr.eu-west-1.amazonaws.com/atu-ec2-app`, using the Git commit SHA as its tag. Docker does not rebuild the image for publication.
+- Feature branches and pull requests execute Maven verification and Docker build but skip AWS authentication, ECR login, and publication.
+
+**Design decision:**
+A single job avoids splitting the build across two GitHub runners and removes the need to transfer build artifacts between jobs. The project's multi-stage Dockerfile still performs its own Maven build inside the Docker build; the preceding `mvn clean verify` is a separate validation step.
+
+**Security considerations:**
+
+- AWS authentication uses short-lived credentials through OIDC instead of stored AWS access keys.
+- ECR publication is limited to pushes to `master`.
+- The IAM Role's ECR permissions are limited to the `atu-ec2-app` repository.
+- ECR image tags are immutable; rerunning a publication with an existing Git SHA tag may fail unless handled separately.
+
+**Verification:**
+The workflow was updated, but successful GitHub Actions execution, OIDC role assumption and ECR image publication have **not yet been verified**. The current Maven verification runs no implemented unit or integration tests.
+
+**Current limitations:**
+Automated EC2 deployment, container vulnerability scanning in the workflow, post-deployment health checks and rollback have not yet been implemented.
+
+**Result:**
+The workflow is configured to validate Java and build one local Docker image on a single runner, and to publish that image to ECR when the workflow is triggered by a push to `master`.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -4187,3 +4222,29 @@ Available at: https://docs.aws.amazon.com/systems-manager/latest/userguide/run-c
 **[90]** Amazon Web Services (n.d.) *Control access to Run Command*.
 Available at: https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command-setting-up.html
 (Accessed: 26 October 2026).
+
+<a id="ref-91"></a>
+**[91]** AWS Actions (n.d.) *Configure AWS Credentials for GitHub Actions*.
+Available at: https://github.com/aws-actions/configure-aws-credentials
+(Accessed: 27 October 2026).
+
+<a id="ref-92"></a>
+**[92]** GitHub (n.d.) *Configuring OpenID Connect in Amazon Web Services*.
+Available at: https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws
+(Accessed: 27 October 2026).
+
+<a id="ref-93"></a>
+**[93]** AWS Actions (n.d.) *Amazon ECR Login Action*.
+Available at: https://github.com/aws-actions/amazon-ecr-login
+(Accessed: 27 October 2026).
+
+<a id="ref-94"></a>
+**[94]** Docker (n.d.) *Build and push Docker images*.
+Available at: https://github.com/docker/build-push-action
+(Accessed: 27 October 2026).
+
+<a id="ref-95"></a>
+**[95]** Docker (n.d.) *Docker Setup Buildx Action*.
+Available at: https://github.com/docker/setup-buildx-action
+(Accessed: 27 October 2026).
+
