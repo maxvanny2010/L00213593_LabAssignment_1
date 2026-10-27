@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  Amazon ECR repository for the ATU EC2 Java application.
+
+Resources:
+
+  ApplicationRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: atu-ec2-app
+
+      ImageTagMutability: IMMUTABLE
+
+      EncryptionConfiguration:
+        EncryptionType: AES256
+
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep the latest five images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+Outputs:
+
+  RepositoryUri:
+    Description: ECR repository URI
+    Value: !GetAtt ApplicationRepository.RepositoryUri
+
+  RepositoryArn:
+    Description: ECR repository ARN
+    Value: !GetAtt ApplicationRepository.Arn

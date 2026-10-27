@@ -46,7 +46,9 @@ Resources:
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-Network/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-SecurityGroup/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-Instance/*
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-GitHub-OIDC/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-IAM/*
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ATU-EC2-ECR/*
               - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
 
           - Sid: ManageNetworkResources
@@ -197,6 +199,78 @@ Resources:
               - ssm:ListCommandInvocations
             Resource: "*"
 
+          - Sid: DescribeECRRepositories
+            Effect: Allow
+            Action:
+              - ecr:DescribeRepositories
+            Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+
+          - Sid: ManageApplicationECRRepository
+            Effect: Allow
+            Action:
+              - ecr:CreateRepository
+              - ecr:DeleteRepository
+              - ecr:DescribeRepositories
+              - ecr:PutLifecyclePolicy
+              - ecr:DeleteLifecyclePolicy
+              - ecr:PutImageScanningConfiguration
+              - ecr:PutImageTagMutability
+              - ecr:TagResource
+              - ecr:UntagResource
+            Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/atu-ec2-app
+
+  GitHubOIDCDeploymentPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Permissions to deploy GitHub Actions OIDC infrastructure.
+
+      Groups:
+        - !Ref DeveloperGroupName
+
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+
+          - Sid: ManageGitHubOIDCProvider
+            Effect: Allow
+            Action:
+              - iam:CreateOpenIDConnectProvider
+              - iam:GetOpenIDConnectProvider
+              - iam:DeleteOpenIDConnectProvider
+              - iam:UpdateOpenIDConnectProviderThumbprint
+              - iam:AddClientIDToOpenIDConnectProvider
+              - iam:RemoveClientIDFromOpenIDConnectProvider
+              - iam:TagOpenIDConnectProvider
+              - iam:UntagOpenIDConnectProvider
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+
+          - Sid: ManageGitHubActionsRole
+            Effect: Allow
+            Action:
+              - iam:CreateRole
+              - iam:GetRole
+              - iam:DeleteRole
+              - iam:UpdateAssumeRolePolicy
+              - iam:TagRole
+              - iam:UntagRole
+              - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
+              - iam:ListAttachedRolePolicies
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ATU-GitHub-Actions-ECR
+
+          - Sid: ManageGitHubActionsPolicy
+            Effect: Allow
+            Action:
+              - iam:CreatePolicy
+              - iam:GetPolicy
+              - iam:GetPolicyVersion
+              - iam:ListPolicyVersions
+              - iam:CreatePolicyVersion
+              - iam:DeletePolicyVersion
+              - iam:SetDefaultPolicyVersion
+              - iam:DeletePolicy
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/ATU-GitHub-OIDC-*
 Outputs:
 
   NetworkDeploymentPolicyArn:

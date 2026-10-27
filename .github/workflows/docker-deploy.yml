@@ -1,0 +1,68 @@
+name: Docker Build and ECR Publish
+
+on:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    name: Build, Verify and Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build and verify Maven modules
+        run: mvn -B clean verify
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          push: false
+          tags: atu-ec2-app:${{ github.sha }}
+
+      - name: Configure AWS credentials
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::897068845214:role/ATU-GitHub-Actions-ECR
+          aws-region: eu-west-1
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag and push Docker image to ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag "atu-ec2-app:${IMAGE_TAG}" "${ECR_REGISTRY}/atu-ec2-app:${IMAGE_TAG}"
+          docker push "${ECR_REGISTRY}/atu-ec2-app:${IMAGE_TAG}"
