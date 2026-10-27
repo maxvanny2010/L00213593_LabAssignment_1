@@ -56,6 +56,20 @@ Resources:
               - dynamodb:PutItem
             Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDbTableName}
 
+          - Sid: GetECRAuthorizationToken
+            Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+            Resource: "*"
+
+          - Sid: PullApplicationImageFromECR
+            Effect: Allow
+            Action:
+              - ecr:BatchGetImage
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchCheckLayerAvailability
+            Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/atu-ec2-app
+
 
   # EC2 uses this instance profile to obtain role credentials.
   ApplicationInstanceProfile:
