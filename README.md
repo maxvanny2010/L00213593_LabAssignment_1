@@ -3496,7 +3496,8 @@ Use the verified Docker Engine to build and run the application container in a s
 
 **Objective**
 
-Improve code consistency and maintainability across the Lambda and EC2 Java applications by centralising configuration values and reusable constants.
+Improve code consistency and maintainability across the Lambda and EC2 Java applications by centralising configuration
+values and reusable constants.
 
 **Implementation**
 
@@ -3508,7 +3509,8 @@ Improve code consistency and maintainability across the Lambda and EC2 Java appl
 
 **Design Decision**
 
-I decided to maintain reusable constants in the `common` module because both Java applications depend on it. This follows the DRY (Don't Repeat Yourself) principle and reduces the risk of inconsistent values across the project.
+I decided to maintain reusable constants in the `common` module because both Java applications depend on it. This
+follows the DRY (Don't Repeat Yourself) principle and reduces the risk of inconsistent values across the project.
 
 **Testing and Validation**
 
@@ -3519,6 +3521,39 @@ Executed:
 **Actual Result:** `BUILD SUCCESS`.
 
 All Maven modules (`common`, `ec2-app` and `lambda-app`) built successfully.
+
+### Iteration 29.1 — Multi-stage Dockerfile
+
+**Objective:** Prepare the Java EC2 application for containerised deployment.
+
+**Implementation:**
+
+- Created a multi-stage Dockerfile using Java 21.
+- Configured Maven to build the `ec2-app` module together with its `common` dependency.
+- Used a separate Java 21 runtime image for application execution.
+- Excluded Maven and application source code from the final runtime image.
+- Configured the application to run as a non-root user (`UID 10001`).
+- Defined environment variables for the application host, port, AWS Region, and DynamoDB table.
+- Exposed application port `8080` in the Docker image metadata.
+
+**Security considerations:**
+The multi-stage approach reduces the contents of the final runtime image by excluding build tools and source files.
+Running the application as a non-root user follows the Principle of Least Privilege.
+
+Additional runtime restrictions, including Linux capability removal, read-only filesystem, and resource limits, will be
+configured during container deployment.
+
+**Verification:**
+The Maven application build previously completed successfully using:
+
+```bash
+mvn clean verify
+```
+
+Docker image build and runtime verification have not yet been performed.
+
+**Result:**
+The Dockerfile has been prepared for integration with the GitHub Actions CI pipeline.
 
 ## 6. References
 
