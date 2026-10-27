@@ -29,7 +29,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: repo:maxvanny2010/L00213593_LabAssignment_1:ref:refs/heads/master
+                token.actions.githubusercontent.com:sub: repo:maxvanny2010@39569512/L00213593_LabAssignment_1@1410842561:ref:refs/heads/master
 
   GitHubECRPushPolicy:
     Type: AWS::IAM::ManagedPolicy
