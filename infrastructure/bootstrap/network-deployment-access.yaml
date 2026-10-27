@@ -211,6 +211,7 @@ Resources:
               - ecr:CreateRepository
               - ecr:DeleteRepository
               - ecr:DescribeRepositories
+              - ecr:DescribeImages
               - ecr:PutLifecyclePolicy
               - ecr:DeleteLifecyclePolicy
               - ecr:PutImageScanningConfiguration

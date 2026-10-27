@@ -3640,7 +3640,8 @@ Successful execution of the new workflow has not yet been confirmed.
 **Result:**
 The initial CI pipeline has been implemented to automate Maven and Docker builds.
 
-Future iterations will introduce GitHub OIDC authentication, Amazon ECR image publication, and automated EC2 deployment through AWS Systems Manager.
+Future iterations will introduce GitHub OIDC authentication, Amazon ECR image publication, and automated EC2 deployment
+through AWS Systems Manager.
 
 ### Iteration 29.4 — GitHub Actions OIDC Authentication
 
@@ -3662,7 +3663,8 @@ The IAM trust policy restricts access to the specified GitHub repository and bra
 
 **Deployment and Verification:**
 Both CloudFormation templates were validated using `cfn-lint`.
-The initial IAM Bootstrap update failed because the existing Managed Policy exceeded the AWS IAM policy size limit of 6,144 characters.
+The initial IAM Bootstrap update failed because the existing Managed Policy exceeded the AWS IAM policy size limit of
+6,144 characters.
 CloudFormation successfully rolled back the unsuccessful update.
 To resolve this issue, permissions were separated into two Managed Policies:
 
@@ -3708,24 +3710,36 @@ GitHub OIDC infrastructure was successfully provisioned and verified using AWS C
 The IAM Role and OIDC Provider are ready for integration with GitHub Actions.
 Actual role assumption from GitHub Actions has not yet been tested.
 
-
 ### Iteration 29.5 — Automated Docker Image Publication to Amazon ECR
 
-**Objective:** Build and verify the Java application and Docker image on one GitHub Actions runner, then publish the verified image to Amazon ECR only for pushes to `master`.
+**Objective:** Build and verify the Java application and Docker image on one GitHub Actions runner,
+then publish the verified image to Amazon ECR only for pushes to `master`.
 
 **Implementation:**
 
-- Updated `.github/workflows/docker-deploy.yml` to use a single `build-and-publish` job on `ubuntu-latest`. Its steps run sequentially; an unsuccessful Maven build or Docker build prevents the normal publication steps from running. GitHub Actions workflow syntax and job steps are documented in [[63]](#ref-63).
-- Used `actions/checkout@v4` and `actions/setup-java@v4` to prepare the Java 21 Maven build, followed by `mvn -B clean verify`.
+- Updated `.github/workflows/docker-deploy.yml` to use a single `build-and-publish` job on `ubuntu-latest`. Its steps  
+  run sequentially; an unsuccessful Maven build or Docker build prevents the normal publication steps from running.
+  GitHub Actions workflow syntax and job steps are documented in [[63]](#ref-63).
+- Used `actions/checkout@v4` and `actions/setup-java@v4` to prepare the Java 21 Maven build, followed by
+  `mvn -B clean verify`.
 - Configured Docker Buildx using `docker/setup-buildx-action@v3` [[95]](#ref-95).
-- Used `docker/build-push-action@v6` to build the project Dockerfile with `load: true`, `push: false`, and the local tag `atu-ec2-app:${{ github.sha }}`. The `load` option makes the resulting image available to the Docker daemon on the same runner [[94]](#ref-94).
-- For pushes to `master` only, used `aws-actions/configure-aws-credentials@v4` to assume the existing `ATU-GitHub-Actions-ECR` IAM Role using GitHub OIDC. The job requests `id-token: write` to obtain an OIDC token; the role's trust policy independently restricts the permitted repository and branch [[91]](#ref-91) [[92]](#ref-92).
+- Used `docker/build-push-action@v6` to build the project Dockerfile with `load: true`, `push: false`, and the local tag
+  `atu-ec2-app:${{ github.sha }}`. The `load` option makes the resulting image available 
+   to the Docker daemon on the same runner [[94]](#ref-94).
+- For pushes to `master` only, used `aws-actions/configure-aws-credentials@v4` to assume the existing
+  `ATU-GitHub-Actions-ECR` IAM Role using GitHub OIDC. The job requests `id-token: write` to obtain an OIDC token; the
+  role's trust policy independently restricts the permitted repository and branch [[91]](#ref-91) [[92]](#ref-92).
 - Used `aws-actions/amazon-ecr-login@v2` to authenticate Docker to Amazon ECR [[93]](#ref-93).
-- Used `docker tag` and `docker push` to publish the **already built local image** to `897068845214.dkr.ecr.eu-west-1.amazonaws.com/atu-ec2-app`, using the Git commit SHA as its tag. Docker does not rebuild the image for publication.
-- Feature branches and pull requests execute Maven verification and Docker build but skip AWS authentication, ECR login, and publication.
+- Used `docker tag` and `docker push` to publish the **already built local image** to
+  `897068845214.dkr.ecr.eu-west-1.amazonaws.com/atu-ec2-app`, using the Git commit SHA as its tag. 
+   Docker does not   rebuild the image for publication.
+- Feature branches and pull requests execute Maven verification and Docker 
+  build but skip AWS authentication, ECR login, nd publication.
 
 **Design decision:**
-A single job avoids splitting the build across two GitHub runners and removes the need to transfer build artifacts between jobs. The project's multi-stage Dockerfile still performs its own Maven build inside the Docker build; the preceding `mvn clean verify` is a separate validation step.
+A single job avoids splitting the build across two GitHub runners and removes the need to transfer build artifacts
+between jobs. The project's multi-stage Dockerfile still performs its own Maven build 
+inside the Docker build; the preceding `mvn clean verify` is a separate validation step.
 
 **Security considerations:**
 
@@ -3735,13 +3749,79 @@ A single job avoids splitting the build across two GitHub runners and removes th
 - ECR image tags are immutable; rerunning a publication with an existing Git SHA tag may fail unless handled separately.
 
 **Verification:**
-The workflow was updated, but successful GitHub Actions execution, OIDC role assumption and ECR image publication have **not yet been verified**. The current Maven verification runs no implemented unit or integration tests.
+The workflow was updated, but successful GitHub Actions execution, OIDC role assumption 
+and ECR image publication have **not yet been verified**. 
+The current Maven verification runs no implemented unit or integration tests.
 
 **Current limitations:**
-Automated EC2 deployment, container vulnerability scanning in the workflow, post-deployment health checks and rollback have not yet been implemented.
+Automated EC2 deployment, container vulnerability scanning in the workflow, 
+post-deployment health checks and rollback have not yet been implemented.
 
 **Result:**
-The workflow is configured to validate Java and build one local Docker image on a single runner, and to publish that image to ECR when the workflow is triggered by a push to `master`.
+The workflow is configured to validate Java and build one local Docker image on 
+a single runner, and to publish that image to ECR when the workflow is triggered by a push to `master`.
+
+#### GitHub OIDC Authentication Troubleshooting
+
+**Problem:**
+The first GitHub Actions execution after merging Pull Request #26 failed during AWS authentication.
+
+```text
+Error: Could not assume role with OIDC:
+Not authorized to perform sts:AssumeRoleWithWebIdentity
+```
+
+**Investigation:**
+
+- Verified the IAM Role Trust Policy.
+- Verified the GitHub OIDC Provider and its audience `sts.amazonaws.com`.
+- Confirmed that the workflow was triggered by a push to `master`.
+- Identified a mismatch between the configured IAM Trust Policy and the GitHub OIDC subject format.
+
+**Solution:**
+Updated `infrastructure/ec2/github-oidc.yaml` to use the repository's immutable owner 
+and repository identifiers in the OIDC subject condition. The IAM Trust Policy remains 
+restricted to the project's `master` branch. Validated the updated CloudFormation 
+template using `cfn-lint` and successfully redeployed the `ATU-GitHub-OIDC` stack.
+
+**Verification:**
+
+- [x] CloudFormation lint validation passed.
+- [x] GitHub OIDC stack updated successfully.
+- [x] GitHub Actions OIDC authentication succeeded.
+- [x] Maven build completed successfully.
+- [x] Docker image build completed successfully.
+- [x] GitHub Actions workflow completed successfully.
+- [x] Independent Amazon ECR image verification is passed.
+
+**GitHub Actions Results:**
+
+```text
+Workflow: Docker Build and ECR Publish
+Branch: master
+Commit: 9d0c0478f577557c388106a2328347c3103ebf20
+Status: Success
+Duration: 1m 23s
+```
+
+#### Amazon ECR Verification Permissions
+
+**Problem:**
+The first attempt to inspect published Docker images using AWS CLI failed 
+because the deployment IAM user lacked `ecr:DescribeImages` permission.
+
+**Solution:**
+Extended the existing `ManageApplicationECRRepository` statement in
+`infrastructure/bootstrap/network-deployment-access.yaml` with `ecr:DescribeImages`.
+The permission remains restricted to the `atu-ec2-app` ECR repository.
+
+**Verification:**
+CloudFormation deployment and independent ECR image verification are required to confirm the permission update.
+
+**Conclusion:**
+The GitHub Actions pipeline successfully authenticated with AWS using OIDC and completed 
+its build and publication workflow. Independent verification of 
+the published image in Amazon ECR is the remaining validation step.
 
 ## 6. References
 
