@@ -3724,21 +3724,21 @@ then publish the verified image to Amazon ECR only for pushes to `master`.
   `mvn -B clean verify`.
 - Configured Docker Buildx using `docker/setup-buildx-action@v3` [[95]](#ref-95).
 - Used `docker/build-push-action@v6` to build the project Dockerfile with `load: true`, `push: false`, and the local tag
-  `atu-ec2-app:${{ github.sha }}`. The `load` option makes the resulting image available 
-   to the Docker daemon on the same runner [[94]](#ref-94).
+  `atu-ec2-app:${{ github.sha }}`. The `load` option makes the resulting image available
+  to the Docker daemon on the same runner [[94]](#ref-94).
 - For pushes to `master` only, used `aws-actions/configure-aws-credentials@v4` to assume the existing
   `ATU-GitHub-Actions-ECR` IAM Role using GitHub OIDC. The job requests `id-token: write` to obtain an OIDC token; the
   role's trust policy independently restricts the permitted repository and branch [[91]](#ref-91) [[92]](#ref-92).
 - Used `aws-actions/amazon-ecr-login@v2` to authenticate Docker to Amazon ECR [[93]](#ref-93).
 - Used `docker tag` and `docker push` to publish the **already built local image** to
-  `897068845214.dkr.ecr.eu-west-1.amazonaws.com/atu-ec2-app`, using the Git commit SHA as its tag. 
-   Docker does not   rebuild the image for publication.
-- Feature branches and pull requests execute Maven verification and Docker 
+  `897068845214.dkr.ecr.eu-west-1.amazonaws.com/atu-ec2-app`, using the Git commit SHA as its tag.
+  Docker does not rebuild the image for publication.
+- Feature branches and pull requests execute Maven verification and Docker
   build but skip AWS authentication, ECR login, nd publication.
 
 **Design decision:**
 A single job avoids splitting the build across two GitHub runners and removes the need to transfer build artifacts
-between jobs. The project's multi-stage Dockerfile still performs its own Maven build 
+between jobs. The project's multi-stage Dockerfile still performs its own Maven build
 inside the Docker build; the preceding `mvn clean verify` is a separate validation step.
 
 **Security considerations:**
@@ -3749,16 +3749,16 @@ inside the Docker build; the preceding `mvn clean verify` is a separate validati
 - ECR image tags are immutable; rerunning a publication with an existing Git SHA tag may fail unless handled separately.
 
 **Verification:**
-The workflow was updated, but successful GitHub Actions execution, OIDC role assumption 
-and ECR image publication have **not yet been verified**. 
+The workflow was updated, but successful GitHub Actions execution, OIDC role assumption
+and ECR image publication have **not yet been verified**.
 The current Maven verification runs no implemented unit or integration tests.
 
 **Current limitations:**
-Automated EC2 deployment, container vulnerability scanning in the workflow, 
+Automated EC2 deployment, container vulnerability scanning in the workflow,
 post-deployment health checks and rollback have not yet been implemented.
 
 **Result:**
-The workflow is configured to validate Java and build one local Docker image on 
+The workflow is configured to validate Java and build one local Docker image on
 a single runner, and to publish that image to ECR when the workflow is triggered by a push to `master`.
 
 #### GitHub OIDC Authentication Troubleshooting
@@ -3779,9 +3779,9 @@ Not authorized to perform sts:AssumeRoleWithWebIdentity
 - Identified a mismatch between the configured IAM Trust Policy and the GitHub OIDC subject format.
 
 **Solution:**
-Updated `infrastructure/ec2/github-oidc.yaml` to use the repository's immutable owner 
-and repository identifiers in the OIDC subject condition. The IAM Trust Policy remains 
-restricted to the project's `master` branch. Validated the updated CloudFormation 
+Updated `infrastructure/ec2/github-oidc.yaml` to use the repository's immutable owner
+and repository identifiers in the OIDC subject condition. The IAM Trust Policy remains
+restricted to the project's `master` branch. Validated the updated CloudFormation
 template using `cfn-lint` and successfully redeployed the `ATU-GitHub-OIDC` stack.
 
 **Verification:**
@@ -3807,7 +3807,7 @@ Duration: 1m 23s
 #### Amazon ECR Verification Permissions
 
 **Problem:**
-The first attempt to inspect published Docker images using AWS CLI failed 
+The first attempt to inspect published Docker images using AWS CLI failed
 because the deployment IAM user lacked `ecr:DescribeImages` permission.
 
 **Solution:**
@@ -3816,17 +3816,18 @@ Extended the existing `ManageApplicationECRRepository` statement in
 The permission remains restricted to the `atu-ec2-app` ECR repository.
 
 **Verification:**
-CloudFormation deployment and independent ECR image verification are required to confirm the permission update.
+CloudFormation deployment completed and the ECR image was independently verified after the permissions update.
 
 **Conclusion:**
-The GitHub Actions pipeline successfully authenticated with AWS using OIDC and completed 
-its build and publication workflow. Independent verification of 
-the published image in Amazon ECR is the remaining validation step.
+The GitHub Actions pipeline successfully authenticated with AWS using OIDC and completed
+its build and publication workflow. Independent verification of
+the published image in Amazon ECR also succeeded.
 
 ### Iteration 29.6.1 — EC2 ECR Access and Container Verification
 
 **Objective:**
-Allow the existing EC2 instance to securely download Docker images from Amazon ECR and verify that the containerised Java application can access DynamoDB.
+Allow the existing EC2 instance to securely download Docker images from Amazon ECR and verify that the containerised
+Java application can access DynamoDB.
 
 **Implementation:**
 
@@ -3906,7 +3907,8 @@ HTTP/1.1 200 OK
 **Result:**
 The containerized Java application successfully runs on Amazon EC2 and retrieves data from DynamoDB.
 
-The Docker image is downloaded from Amazon ECR using IAM-based authentication without manually configuring permanent AWS access keys.
+The Docker image is downloaded from Amazon ECR using IAM-based authentication without manually configuring permanent AWS
+access keys.
 
 **Current Limitations:**
 
@@ -3916,63 +3918,88 @@ The Docker image is downloaded from Amazon ECR using IAM-based authentication wi
 - Automated rollback is not yet configured.
 
 **Next Step:**
-Automate Docker installation through CloudFormation UserData and implement repeatable container deployment using AWS Systems Manager.
+Define Docker installation through CloudFormation UserData; the existing container deployment remains a verified manual
+SSM operation.
 
-### Iteration 29.6.2 — Automated Docker Installation Using EC2 UserData
+### Iteration 29.6.2 — Docker Setup Defined in EC2 UserData
 
 **Objective:**
-Automate Docker Engine installation and initial configuration when a new Amazon EC2 instance is provisioned through AWS CloudFormation.
+
+Include Docker installation in the EC2 CloudFormation template so that a newly provisioned Amazon Linux 2023 instance
+can configure its container runtime during initialisation.
 
 **Implementation:**
 
-Updated `infrastructure/ec2/instance.yaml` to extend the existing EC2 UserData configuration.
+Updated `infrastructure/ec2/instance.yaml` with `UserData` that enables the SSM Agent, installs Docker using `dnf`,
+enables and starts the Docker service, and verifies the service with `systemctl` and `docker info`. The configuration
+uses `Fn::Base64` and does not require `Fn::Sub`, because no CloudFormation variables are substituted inside the
+script [[96]](#ref-96) [[97]](#ref-97). Amazon Linux 2023 uses `dnf` for package management [[88]](#ref-88).
 
-The UserData script performs the following operations:
+**Verification and scope:**
 
-1. Enables and starts AWS Systems Manager Agent.
-2. Installs Docker Engine using the Amazon Linux 2023 `dnf` package manager.
-3. Enables and starts the Docker systemd service.
-4. Verifies that Docker is active and enabled.
-5. Verifies communication with Docker Engine using `docker info`.
+- [x] Docker Engine was installed separately on the existing EC2 instance using AWS Systems Manager Run Command (
+  Iteration 28).
+- [x] The existing Docker service was verified as active and enabled.
+- [x] The modified CloudFormation template passed local `cfn-lint` validation.
+- [x] The running Docker container was verified through `/health` and `/message` (Iteration 29.6.1).
 
-**Reference Implementation:**
-AWS EC2 UserData documentation explains how shell scripts can automate instance configuration during initial launch [[96]](#ref-96).
+**Limitation:**
 
-The implementation uses the `UserData` property of the `AWS::EC2::Instance` CloudFormation resource [[97]](#ref-97).
+The updated UserData was **not deployed or runtime-tested on a newly created EC2 instance**. The successful installation
+on the current instance used SSM, not this UserData script. Accordingly, the CloudFormation template describes the
+intended automated setup, but that particular first-boot path has not been independently verified. The existing EC2
+stack was not updated to apply this UserData change.
 
-Amazon Linux 2023 uses `dnf` for package management [[98]](#ref-98).
+**Design decision:**
 
-**Design Decision:**
-I decided to separate EC2 initialisation from application deployment.
-CloudFormation UserData is responsible for preparing the operating system and installing Docker.
-GitHub Actions and AWS Systems Manager will be responsible for deploying updated application containers.
-This approach allows new EC2 instances to receive Docker automatically without requiring a separate manual installation command.
+Initial instance setup is defined in CloudFormation. Updating the Java application container is a separate operational
+activity. Automatic deployment from GitHub Actions to EC2 was deliberately left outside the final scope of this lab.
 
-**Security Considerations:**
+### Iteration 29.6.3 — Deployment Verification and Scope Conclusion
 
-- No inbound SSH access is required.
-- The existing EC2 IAM Instance Profile is preserved.
-- No permanent AWS credentials are stored in UserData.
-- Docker installation is managed through infrastructure configuration.
-- Application deployment remains separate from operating system initialisation.
+**Completed work:**
 
-**Testing and Validation:**
+- Provisioned AWS infrastructure with CloudFormation, including the VPC, subnet, routing, Security Group, EC2, IAM roles
+  and Instance Profile.
+- Implemented static website delivery through S3 and CloudFront and a three-tier application using API Gateway, Java
+  Lambda and DynamoDB.
+- Created an ECR repository with CloudFormation and configured GitHub Actions to build the Java application and Docker
+  image and publish to ECR from `master` using OIDC.
+- Granted the EC2 Instance Profile restricted ECR image-pull permissions through CloudFormation.
+- Used SSM Run Command to pull the published Docker image and start the Java application container on EC2 without
+  inbound SSH or HTTP access.
+- Verified `GET /health` and `GET /message` returned HTTP 200, with the latter retrieving a stored DynamoDB message.
 
-- [x] Docker installation was previously verified on the existing EC2 instance using AWS Systems Manager.
-- [x] Docker Engine was confirmed active and enabled.
-- [x] Updated CloudFormation template validation is passed.
-- [ ] Automatic Docker installation on a newly created EC2 instance has not yet been tested.
+**Final scope decision:**
 
-**Current Limitations:**
-The existing EC2 instance was configured previously using AWS Systems Manager Run Command.
-The updated UserData configuration has not yet been deployed to a replacement instance.
-CloudFormation UserData changes may require interruption of an existing EC2 instance and do not automatically rerun the initialisation script.
+Automatic container deployment from GitHub Actions using SSM was considered but **not implemented**. The existing
+pipeline already builds and publishes Docker images, and manual SSM deployment was sufficient to demonstrate the running
+application and AWS infrastructure. This avoids adding deployment orchestration and rollback logic to a lab centred on
+CloudFormation.
 
-**Result:**
-The CloudFormation template has been extended to automate Docker installation during future EC2 instance creation.Runtime verification of the new UserData configuration remains pending.
+Temporary SSM deployment permissions that had been added to the GitHub Actions role during development were removed by
+updating the `ATU-GitHub-OIDC` stack. The role's remaining ECR publishing policy was verified with
+`aws iam list-attached-role-policies`.
 
-**Next Step:**
-Implement a reusable Docker container deployment script and integrate it with AWS Systems Manager.
+**Final verification summary:**
+
+| Verification                                                | Result                         |
+|-------------------------------------------------------------|--------------------------------|
+| CloudFormation infrastructure and IAM deployment            | Passed                         |
+| GitHub Actions Maven/Docker build and ECR publication       | Passed                         |
+| ECR image pull to EC2 through SSM                           | Passed                         |
+| Docker container startup on EC2                             | Passed                         |
+| `GET /health`                                               | HTTP 200                       |
+| `GET /message` with DynamoDB data                           | HTTP 200                       |
+| Automatic installation by the revised UserData on a new EC2 | Not tested                     |
+| Automatic GitHub Actions → SSM deployment                   | Not implemented (out of scope) |
+
+**Conclusion:**
+
+The lab demonstrates CloudFormation-managed AWS infrastructure, IAM access control, containerisation, image publication
+through a basic CI pipeline, and a working Java application on EC2 connected to DynamoDB. The revised UserData is
+included as a reproducible first-boot configuration proposal; automated application deployment and rollback remain
+optional future enhancements.
 
 ## 6. References
 
@@ -4486,9 +4513,4 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
 <a id="ref-97"></a>
 **[97]** Amazon Web Services (n.d.) *AWS::EC2::Instance — AWS CloudFormation Template Reference*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ec2-instance.html
-(Accessed: 27 October 2026).
-
-<a id="ref-98"></a>
-**[98]** Amazon Web Services (n.d.) *Package management in Amazon Linux 2023*.
-Available at: https://docs.aws.amazon.com/linux/al2023/ug/package-management.html
 (Accessed: 27 October 2026).
