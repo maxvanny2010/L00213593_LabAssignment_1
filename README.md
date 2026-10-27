@@ -3555,6 +3555,63 @@ Docker image build and runtime verification have not yet been performed.
 **Result:**
 The Dockerfile has been prepared for integration with the GitHub Actions CI pipeline.
 
+### Iteration 29.2 — Amazon ECR Infrastructure
+
+**Objective:** Provision a secure container registry using AWS CloudFormation.
+
+**Implementation:**
+
+- Created `infrastructure/ec2/ecr.yaml`.
+- Provisioned Amazon ECR Repository `atu-ec2-app`.
+- Configured immutable Docker image tags to prevent image overwriting.
+- Enabled image scanning on push.
+- Configured AES256 encryption for stored container images.
+- Added an ECR lifecycle policy to retain the latest five images.
+- Updated IAM Bootstrap permissions to allow controlled management of the ECR repository.
+- Used AWS CloudFormation instead of manual AWS Console configuration.
+
+**Security considerations:**
+The ECR repository uses immutable image tags, encryption at rest, and image scanning.
+IAM permissions for repository management are restricted to the `atu-ec2-app` repository.
+These measures support the principles of Least Privilege and Infrastructure as Code.
+
+**Verification:**
+
+Validated the CloudFormation templates:
+
+```bash
+cfn-lint --regions eu-west-1 \
+  -t infrastructure/bootstrap/network-deployment-access.yaml \
+     infrastructure/ec2/ecr.yaml
+```
+
+Both templates passed validation without errors.
+
+Successfully deployed the IAM Bootstrap stack:
+
+```text
+Successfully created/updated stack - ATU-EC2-Bootstrap
+```
+
+Successfully deployed the ECR stack:
+
+```text
+Successfully created/updated stack - ATU-EC2-ECR
+```
+
+Verified the ECR repository:
+
+```text
+Repository: atu-ec2-app
+Region: eu-west-1
+Image tag mutability: IMMUTABLE
+```
+
+**Result:**
+Amazon ECR was successfully provisioned using CloudFormation.
+The repository is ready to store Docker images produced by the GitHub Actions pipeline.
+Automated image publication and EC2 deployment will be implemented in subsequent iterations.
+
 ## 6. References
 
 <a id="ref-1"></a>
