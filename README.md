@@ -3823,6 +3823,101 @@ The GitHub Actions pipeline successfully authenticated with AWS using OIDC and c
 its build and publication workflow. Independent verification of 
 the published image in Amazon ECR is the remaining validation step.
 
+### Iteration 29.6.1 — EC2 ECR Access and Container Verification
+
+**Objective:**
+Allow the existing EC2 instance to securely download Docker images from Amazon ECR and verify that the containerised Java application can access DynamoDB.
+
+**Implementation:**
+
+- Updated `infrastructure/ec2/iam.yaml`.
+- Extended the existing `ApplicationManagedPolicy`.
+- Added `ecr:GetAuthorizationToken` to allow authentication with Amazon ECR.
+- Added `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` and `ecr:BatchCheckLayerAvailability`.
+- Restricted image download permissions to the `atu-ec2-app` ECR repository.
+- Preserved the existing DynamoDB and Systems Manager permissions.
+- Updated the `ATU-EC2-IAM` CloudFormation stack successfully.
+
+**Deployment and Verification:**
+Used AWS Systems Manager Run Command to execute commands on the existing EC2 instance without SSH access.
+Verified that AWS CLI and Docker were installed and available.
+Authenticated Docker with Amazon ECR using the EC2 Instance Profile credentials.
+Successfully downloaded the Docker image:
+
+`897068845214.dkr.ecr.eu-west-1.amazonaws.com/atu-ec2-app:9d0c0478f577557c388106a2328347c3103ebf20`
+
+**Docker Container Security:**
+The container was started with the following restrictions:
+
+- Non-root user (`10001:10001`).
+- All Linux capabilities removed using `--cap-drop=ALL`.
+- Privilege escalation disabled using `--security-opt=no-new-privileges`.
+- Read-only root filesystem using `--read-only`.
+- Temporary filesystem configured for `/tmp`.
+- Memory limit: 256 MB.
+- CPU limit: 0.5.
+- Process limit: 128.
+- Application port bound to `127.0.0.1:8080` on the EC2 host.
+
+**Testing and Validation:**
+
+- [x] CloudFormation IAM stack updated successfully.
+- [x] AWS Systems Manager commands completed successfully.
+- [x] Amazon ECR authentication succeeded.
+- [x] Docker image downloaded successfully.
+- [x] Docker container started successfully.
+- [x] `GET /health` returned HTTP 200.
+- [x] `GET /message` returned HTTP 200.
+- [x] DynamoDB returned the previously stored message.
+- [x] No inbound Security Group rules were added.
+
+**HTTP Health Check:**
+
+```http
+HTTP/1.1 200 OK
+```
+
+```json
+{
+  "service": "ec2-app",
+  "status": "UP"
+}
+```
+
+**DynamoDB Integration Test:**
+
+```http
+HTTP/1.1 200 OK
+```
+
+```json
+{
+  "count": 1,
+  "messages": [
+    {
+      "id": "68cc1fcd-a965-45df-a124-05c3c6812fe8",
+      "message": "My first DynamoDB message",
+      "createdAt": "2026-10-23T21:51:07.150955961Z"
+    }
+  ]
+}
+```
+
+**Result:**
+The containerized Java application successfully runs on Amazon EC2 and retrieves data from DynamoDB.
+
+The Docker image is downloaded from Amazon ECR using IAM-based authentication without manually configuring permanent AWS access keys.
+
+**Current Limitations:**
+
+- Docker installation is not yet automated through CloudFormation UserData.
+- Container deployment was performed manually using AWS Systems Manager.
+- Automatic deployment from GitHub Actions is not yet implemented.
+- Automated rollback is not yet configured.
+
+**Next Step:**
+Automate Docker installation through CloudFormation UserData and implement repeatable container deployment using AWS Systems Manager.
+
 ## 6. References
 
 <a id="ref-1"></a>
