@@ -3612,6 +3612,36 @@ Amazon ECR was successfully provisioned using CloudFormation.
 The repository is ready to store Docker images produced by the GitHub Actions pipeline.
 Automated image publication and EC2 deployment will be implemented in subsequent iterations.
 
+### Iteration 29.3 — GitHub Actions Docker Build Pipeline
+
+**Objective:** Introduce automated Java application builds and Docker image creation using GitHub Actions.
+
+**Implementation:**
+
+- Created `.github/workflows/docker-deploy.yml`.
+- Configured automatic execution on pushes and pull requests.
+- Configured Java 21 using `actions/setup-java@v4`.
+- Added Maven build verification using `mvn -B clean verify`.
+- Configured Docker Buildx using `docker/setup-buildx-action@v3`.
+- Added Docker image creation using `docker/build-push-action@v6`.
+- Configured `push: false` to prevent image publication during the initial CI implementation.
+
+**Current limitations:**
+
+- No automated Java unit or integration tests are implemented.
+- No Docker vulnerability scanning is configured.
+- Docker images are not yet published to Amazon ECR.
+- EC2 deployment and automated rollback are not yet implemented.
+
+**Verification:**
+The workflow configuration was prepared for GitHub Actions.
+Successful execution of the new workflow has not yet been confirmed.
+
+**Result:**
+The initial CI pipeline has been implemented to automate Maven and Docker builds.
+
+Future iterations will introduce GitHub OIDC authentication, Amazon ECR image publication, and automated EC2 deployment through AWS Systems Manager.
+
 ## 6. References
 
 <a id="ref-1"></a>
