@@ -3642,6 +3642,72 @@ The initial CI pipeline has been implemented to automate Maven and Docker builds
 
 Future iterations will introduce GitHub OIDC authentication, Amazon ECR image publication, and automated EC2 deployment through AWS Systems Manager.
 
+### Iteration 29.4 — GitHub Actions OIDC Authentication
+
+**Objective:** Prepare secure authentication between GitHub Actions and AWS without storing permanent AWS credentials.
+
+**Implementation:**
+
+- Created `infrastructure/ec2/github-oidc.yaml`.
+- Defined an AWS IAM OIDC Provider for GitHub Actions.
+- Defined the IAM Role `ATU-GitHub-Actions-ECR`.
+- Restricted role assumption to the `master` branch of the project repository.
+- Configured permissions for publishing Docker images to the `atu-ec2-app` ECR repository.
+- Applied the Principle of Least Privilege.
+
+**Security considerations:**
+GitHub Actions will authenticate using temporary credentials obtained through AWS Security Token Service (STS).
+Permanent AWS Access Keys will not be stored in GitHub Secrets.
+The IAM trust policy restricts access to the specified GitHub repository and branch.
+
+**Deployment and Verification:**
+Both CloudFormation templates were validated using `cfn-lint`.
+The initial IAM Bootstrap update failed because the existing Managed Policy exceeded the AWS IAM policy size limit of 6,144 characters.
+CloudFormation successfully rolled back the unsuccessful update.
+To resolve this issue, permissions were separated into two Managed Policies:
+
+- `NetworkDeploymentPolicy` — existing EC2, networking, SSM and ECR permissions.
+- `GitHubOIDCDeploymentPolicy` — permissions for provisioning GitHub OIDC infrastructure.
+
+Both policies are attached to the existing developer IAM group.
+After this change, the IAM Bootstrap stack was successfully updated.
+The GitHub OIDC infrastructure was deployed using:
+
+```powershell
+aws cloudformation deploy `
+  --template-file infrastructure/ec2/github-oidc.yaml `
+  --stack-name ATU-GitHub-OIDC `
+  --capabilities CAPABILITY_NAMED_IAM `
+  --region eu-west-1 `
+  --profile atu-lab
+```
+
+**CloudFormation verification results:**
+
+```text
+Stack: ATU-GitHub-OIDC
+Status: CREATE_COMPLETE
+
+IAM Role:
+arn:aws:iam::897068845214:role/ATU-GitHub-Actions-ECR
+
+OIDC Provider:
+arn:aws:iam::897068845214:oidc-provider/token.actions.githubusercontent.com
+```
+
+**Security:**
+
+- GitHub Actions authentication uses OIDC federation.
+- No permanent AWS Access Keys are required.
+- Role assumption is restricted to the project's `master` branch.
+- ECR permissions are limited to the `atu-ec2-app` repository.
+- A separate IAM Managed Policy is used instead of an inline role policy.
+
+**Result:**
+GitHub OIDC infrastructure was successfully provisioned and verified using AWS CloudFormation.
+The IAM Role and OIDC Provider are ready for integration with GitHub Actions.
+Actual role assumption from GitHub Actions has not yet been tested.
+
 ## 6. References
 
 <a id="ref-1"></a>
