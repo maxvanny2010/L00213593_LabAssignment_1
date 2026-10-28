@@ -4894,6 +4894,46 @@ The POST endpoint remains protected by AWS IAM authorization.
 Permission to invoke POST requests must be granted separately
 to the IAM principal used by an API client.
 
+### Iteration 29.8.5 — Parameterising API Gateway CORS Origin
+
+**Objective:**
+Remove the hardcoded CloudFront domain from the API Gateway CORS
+configuration to support deployment in another AWS account.
+
+**Reference Implementation:**
+I used the official AWS CloudFormation documentation for
+`AWS::ApiGatewayV2::Api` to configure CORS using a CloudFormation
+parameter [[113]](#ref-113).
+
+**Implementation:**
+Added the `AllowedCorsOrigin` parameter to `three-tier.yaml`.
+Replaced the hardcoded CloudFront URL in `CorsConfiguration.AllowOrigins`
+with `!Ref AllowedCorsOrigin`.
+
+The existing CloudFront domain was retained as the default value
+to preserve the current application configuration.
+
+**Testing and Validation:**
+
+- [x] Added the `AllowedCorsOrigin` parameter.
+- [x] Replaced the hardcoded CORS origin with a parameter reference.
+- [x] `cfn-lint` validation passed.
+- [x] `git diff --check` passed.
+- [x] CloudFormation Change Set creation attempted.
+- [x] Confirmed that CloudFormation detected no resource changes.
+- [ ] Updated parameterized template deployed successfully.
+- [ ] CORS verified with a different CloudFront domain.
+
+**Conclusion:**
+The API Gateway CORS origin is now configurable through a
+CloudFormation parameter in the local template.
+
+The attempted update produced no resource changes because the
+resolved CORS value was unchanged.
+
+The parameterised template will be deployed together with a
+subsequent infrastructure update.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -5485,4 +5525,9 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 <a id="ref-112"></a>
 **[112]** Amazon Web Services (n.d.) *Control access to HTTP APIs with IAM authorization*.
 Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-access-control-iam.html
+(Accessed: 28 October 2026).
+
+<a id="ref-113"></a>
+**[113]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Api*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-api.html
 (Accessed: 28 October 2026).

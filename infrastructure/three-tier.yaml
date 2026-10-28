@@ -10,6 +10,11 @@ Parameters:
     Type: String
     Description: S3 object version ID of the uploaded Java Lambda JAR
 
+  AllowedCorsOrigin:
+    Type: String
+    Default: 'https://d2caxeghfi5itf.cloudfront.net'
+    Description: Allowed CloudFront origin for API Gateway CORS
+
 Resources:
 
   # Store messages submitted through the application
@@ -98,7 +103,7 @@ Resources:
         - LambdaArn: !GetAtt MessageLambdaFunction.Arn
       CorsConfiguration:
         AllowOrigins:
-          - 'https://d2caxeghfi5itf.cloudfront.net'
+          - !Ref AllowedCorsOrigin
         AllowMethods:
           - GET
         AllowHeaders:
