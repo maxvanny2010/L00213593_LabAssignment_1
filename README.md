@@ -4042,8 +4042,99 @@ I selected a Bash script embedded in CloudFormation UserData to automate the ini
 The main focus of this lab is Infrastructure as Code using AWS CloudFormation. Therefore, the implementation does not
 include a separate continuous deployment workflow for updating existing EC2 containers after GitHub pushes.
 
-This keeps the deployment process simple while demonstrating automated EC2 provisioning and application initialisation.
+This keeps the deployment process simple while demonstrating automated EC2 provisioning and application initialization.
 
+### Iteration 29.7.2 — IAM Deployment Permissions for Amazon ECR Public
+
+**Objective:**
+
+Extend the existing CloudFormation-managed IAM configuration to allow
+the dedicated development IAM user to deploy and manage a public
+Amazon ECR repository.
+
+The public repository will provide a Docker image that can be downloaded
+without AWS authentication, supporting reproducible deployment of the
+Java application in another AWS account.
+
+**Reference Implementation:**
+
+I used the official AWS CloudFormation documentation for
+`AWS::IAM::ManagedPolicy` as the primary reference [[99]](#ref-99).
+
+I also referred to the AWS documentation for Amazon ECR Public IAM
+permissions, including supported actions and repository ARN formats
+[[100]](#ref-100).
+
+**Implementation:**
+
+Updated `infrastructure/bootstrap/network-deployment-access.yaml`.
+
+Added a separate CloudFormation resource named `PublicECRDeploymentPolicy`
+using `AWS::IAM::ManagedPolicy`.
+
+The policy is attached to the existing
+`ATU-DevOps-Lab-Developers` IAM group.
+
+The policy contains three permission groups:
+
+1. `ManagePublicECRStack` — allows CloudFormation operations on the
+   `ATU-EC2-ECR-Public` stack in `us-east-1`.
+
+2. `ManagePublicECRChangeSets` — allows creating, reviewing and
+   executing CloudFormation Change Sets for the public ECR deployment.
+
+3. `ManagePublicECRRepository` — allows creating, describing,
+   updating and deleting the `atu-ec2-app` public repository.
+
+**My Modifications:**
+
+- Reused the existing IAM developer group.
+- Created a separate managed policy instead of extending the existing
+  network deployment policy.
+- Restricted CloudFormation stack permissions to the dedicated public
+  ECR stack in `us-east-1`.
+- Restricted ECR Public repository operations to `atu-ec2-app`.
+- Preserved the existing private ECR permissions.
+- Kept IAM permissions managed through CloudFormation.
+
+**Design Decision:**
+
+I selected a separate IAM managed policy to maintain a clear separation
+between EC2 infrastructure permissions and public container registry
+deployment permissions.
+
+This approach also avoids further increasing the size of the existing
+network deployment policy, which previously encountered the IAM
+managed policy size limit.
+
+Amazon ECR Public uses `ecr-public` IAM actions and repository ARNs
+without a Region component [[100]](#ref-100).
+
+The public repository will be managed through the `us-east-1` Region,
+while the Java application EC2 instance remains in `eu-west-1`.
+
+**Testing and Validation:**
+
+- [x] Updated CloudFormation IAM template.
+- [x] Added separate IAM managed policy for ECR Public.
+- [x] Restricted permissions to the project repository and stack.
+- [x] Local `cfn-lint` validation passed without errors.
+- [x] `git diff --check` passed.
+- [ ] Updated IAM Bootstrap stack deployed to AWS.
+- [ ] Public ECR repository deployed and verified.
+
+**Current Limitation:**
+The new IAM policy has been defined and validated locally but has not
+yet been deployed to AWS.
+
+The GitHub Actions role also requires separate permissions before it
+can publish Docker images to Amazon ECR Public.
+
+**References:**
+
+- AWS CloudFormation managed policy documentation [[99]](#ref-99).
+- Amazon ECR Public IAM authorization reference [[100]](#ref-100).
+-
 ## 6. References
 
 <a id="ref-1"></a>
@@ -4557,8 +4648,18 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
 **[97]** Amazon Web Services (n.d.) *AWS::EC2::Instance — AWS CloudFormation Template Reference*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ec2-instance.html
 (Accessed: 27 October 2026).
-<a id="ref-98"></a>
 
+<a id="ref-98"></a>
 **[98]** Amazon Web Services (n.d.) *Deploy applications on Amazon EC2 — AWS CloudFormation User Guide*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/deploying.applications.html
 (Accessed: 27 October 2026).
+
+<a id="ref-99"></a>
+**[99]** Amazon Web Services (n.d.) *AWS::IAM::ManagedPolicy — AWS CloudFormation Template Reference*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-managedpolicy.html
+(Accessed: 28 October 2026).
+
+<a id="ref-100"></a>
+**[100]** Amazon Web Services (n.d.) *Actions, resources, and condition keys for Amazon Elastic Container Registry Public*.
+Available at: https://docs.aws.amazon.com/service-authorization/latest/reference/list_ecr-public.html
+(Accessed: 28 October 2026).
