@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  ATU CloudFormation Lab - Public ECR repository
+  for reproducible EC2 application deployment.
+
+Resources:
+
+  PublicApplicationRepository:
+    Type: AWS::ECR::PublicRepository
+    Properties:
+      RepositoryName: atu-ec2-app
+
+      RepositoryCatalogData:
+        RepositoryDescription: >-
+          Java 21 HTTP application for the ATU CloudFormation Lab.
+        OperatingSystems:
+          - Linux
+        Architectures:
+          - x86
+
+      Tags:
+        - Key: Project
+          Value: ATU-CloudFormation-Lab
+
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+
+  PublicRepositoryArn:
+    Description: Public ECR repository ARN
+    Value: !GetAtt PublicApplicationRepository.Arn
+
+  PublicRepositoryName:
+    Description: Public ECR repository name
+    Value: !Ref PublicApplicationRepository

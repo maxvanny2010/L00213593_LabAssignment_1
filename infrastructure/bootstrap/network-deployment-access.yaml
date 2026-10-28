@@ -272,6 +272,62 @@ Resources:
               - iam:SetDefaultPolicyVersion
               - iam:DeletePolicy
             Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/ATU-GitHub-OIDC-*
+
+  PublicECRDeploymentPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Permissions to deploy and manage the ATU public ECR
+        repository using AWS CloudFormation.
+
+      Groups:
+        - !Ref DeveloperGroupName
+
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+
+          - Sid: ManagePublicECRStack
+            Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+              - cloudformation:UpdateStack
+              - cloudformation:DeleteStack
+              - cloudformation:DescribeStacks
+              - cloudformation:DescribeStackEvents
+              - cloudformation:DescribeStackResources
+              - cloudformation:ListStackResources
+              - cloudformation:GetTemplate
+              - cloudformation:GetTemplateSummary
+              - cloudformation:CreateChangeSet
+              - cloudformation:ListChangeSets
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:DeleteChangeSet
+            Resource: !Sub arn:${AWS::Partition}:cloudformation:us-east-1:${AWS::AccountId}:stack/ATU-EC2-ECR-Public/*
+
+          - Sid: ManagePublicECRChangeSets
+            Effect: Allow
+            Action:
+              - cloudformation:CreateChangeSet
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:DeleteChangeSet
+            Resource: !Sub arn:${AWS::Partition}:cloudformation:us-east-1:${AWS::AccountId}:changeSet/*/*
+
+          - Sid: ManagePublicECRRepository
+            Effect: Allow
+            Action:
+              - ecr-public:CreateRepository
+              - ecr-public:DeleteRepository
+              - ecr-public:DescribeRepositories
+              - ecr-public:GetRepositoryCatalogData
+              - ecr-public:PutRepositoryCatalogData
+              - ecr-public:TagResource
+              - ecr-public:UntagResource
+              - ecr-public:ListTagsForResource
+            Resource: !Sub arn:${AWS::Partition}:ecr-public::${AWS::AccountId}:repository/atu-ec2-app
+
 Outputs:
 
   NetworkDeploymentPolicyArn:

@@ -3996,10 +3996,527 @@ updating the `ATU-GitHub-OIDC` stack. The role's remaining ECR publishing policy
 
 **Conclusion:**
 
-The lab demonstrates CloudFormation-managed AWS infrastructure, IAM access control, containerisation, image publication
+The lab demonstrates CloudFormation-managed AWS infrastructure, IAM access control, containerization, image publication
 through a basic CI pipeline, and a working Java application on EC2 connected to DynamoDB. The revised UserData is
 included as a reproducible first-boot configuration proposal; automated application deployment and rollback remain
 optional future enhancements.
+
+### Iteration 29.7.1 — Simplified EC2 Application Bootstrap Using CloudFormation
+
+**Objective:**
+Simplify the EC2 UserData script while retaining automated Docker installation,
+container startup and application verification.
+
+**Implementation:**
+
+- Added `DockerImageUri` and `DynamoTableName` CloudFormation parameters.
+- Configured Docker image download from a public container registry.
+- Removed private ECR authentication from the initial EC2 bootstrap.
+- Preserved container security restrictions and resource limits.
+- Added HTTP checks for application startup and DynamoDB connectivity.
+
+**Testing and Validation:**
+
+- [x] Updated CloudFormation template passed local `cfn-lint` validation.
+- [x] Existing container configuration verified through AWS Systems Manager.
+- [ ] Simplified UserData tested on a newly provisioned EC2 instance.
+- [ ] Public GHCR image published and verified.
+
+**Current Limitation:**
+The simplified bootstrap configuration has not yet been tested on a new EC2 instance.
+The public Docker image must be published before deployment.
+
+**Reference Implementation:**
+I used the official AWS CloudFormation tutorial *Deploy applications on Amazon EC2* as the primary
+reference [[98]](#ref-98).
+
+The tutorial demonstrates how CloudFormation can configure application software on an EC2 instance during provisioning.
+I adapted this approach to install Docker, download a container image and start my Java application using EC2 UserData.
+
+The implementation also follows the official AWS documentation for EC2 UserData [[96]](#ref-96), CloudFormation
+`Fn::Sub` [[30]](#ref-30), EC2 instance configuration [[97]](#ref-97), and Amazon Linux 2023 package
+management [[88]](#ref-88).
+
+**Design Decision:**
+I selected a Bash script embedded in CloudFormation UserData to automate the initial application deployment.
+The main focus of this lab is Infrastructure as Code using AWS CloudFormation. Therefore, the implementation does not
+include a separate continuous deployment workflow for updating existing EC2 containers after GitHub pushes.
+
+This keeps the deployment process simple while demonstrating automated EC2 provisioning and application initialization.
+
+### Iteration 29.7.2 — IAM Deployment Permissions for Amazon ECR Public
+
+**Objective:**
+
+Extend the existing CloudFormation-managed IAM configuration to allow
+the dedicated development IAM user to deploy and manage a public
+Amazon ECR repository.
+
+The public repository will provide a Docker image that can be downloaded
+without AWS authentication, supporting reproducible deployment of the
+Java application in another AWS account.
+
+**Reference Implementation:**
+
+I used the official AWS CloudFormation documentation for
+`AWS::IAM::ManagedPolicy` as the primary reference [[99]](#ref-99).
+
+I also referred to the AWS documentation for Amazon ECR Public IAM
+permissions, including supported actions and repository ARN formats
+[[100]](#ref-100).
+
+**Implementation:**
+
+Updated `infrastructure/bootstrap/network-deployment-access.yaml`.
+
+Added a separate CloudFormation resource named `PublicECRDeploymentPolicy`
+using `AWS::IAM::ManagedPolicy`.
+
+The policy is attached to the existing
+`ATU-DevOps-Lab-Developers` IAM group.
+
+The policy contains three permission groups:
+
+1. `ManagePublicECRStack` — allows CloudFormation operations on the
+   `ATU-EC2-ECR-Public` stack in `us-east-1`.
+
+2. `ManagePublicECRChangeSets` — allows creating, reviewing and
+   executing CloudFormation Change Sets for the public ECR deployment.
+
+3. `ManagePublicECRRepository` — allows creating, describing,
+   updating and deleting the `atu-ec2-app` public repository.
+
+**My Modifications:**
+
+- Reused the existing IAM developer group.
+- Created a separate managed policy instead of extending the existing
+  network deployment policy.
+- Restricted CloudFormation stack permissions to the dedicated public
+  ECR stack in `us-east-1`.
+- Restricted ECR Public repository operations to `atu-ec2-app`.
+- Preserved the existing private ECR permissions.
+- Kept IAM permissions managed through CloudFormation.
+
+**Design Decision:**
+
+I selected a separate IAM managed policy to maintain a clear separation
+between EC2 infrastructure permissions and public container registry
+deployment permissions.
+
+This approach also avoids further increasing the size of the existing
+network deployment policy, which previously encountered the IAM
+managed policy size limit.
+
+Amazon ECR Public uses `ecr-public` IAM actions and repository ARNs
+without a Region component [[100]](#ref-100).
+
+The public repository will be managed through the `us-east-1` Region,
+while the Java application EC2 instance remains in `eu-west-1`.
+
+**Testing and Validation:**
+
+- [x] Updated CloudFormation IAM template.
+- [x] Added separate IAM managed policy for ECR Public.
+- [x] Restricted permissions to the project repository and stack.
+- [x] Local `cfn-lint` validation passed without errors.
+- [x] `git diff --check` passed.
+- [ ] Updated IAM Bootstrap stack deployed to AWS.
+- [ ] Public ECR repository deployed and verified.
+
+**Current Limitation:**
+The new IAM policy has been defined and validated locally but has not
+yet been deployed to AWS.
+
+The GitHub Actions role also requires separate permissions before it
+can publish Docker images to Amazon ECR Public.
+
+**References:**
+
+- AWS CloudFormation managed policy documentation [[99]](#ref-99).
+- Amazon ECR Public IAM authorization reference [[100]](#ref-100).
+
+### Iteration 29.7.3 — GitHub Actions IAM Permissions for Amazon ECR Public
+
+**Objective:**
+Extend the existing GitHub Actions IAM role to support publishing Docker images
+to Amazon ECR Public without creating a new IAM role or changing the existing
+OIDC authentication configuration.
+
+The public Docker image will be used for reproducible deployment of the Java
+application through AWS CloudFormation.
+
+**Reference Implementation:**
+
+I used the official Amazon ECR Public documentation for Docker image
+publication [[101]](#ref-101) and registry authentication [[102]](#ref-102).
+
+AWS requires `ecr-public:GetAuthorizationToken` and
+`sts:GetServiceBearerToken` permissions for ECR Public authentication.
+
+The Docker image publication process also requires permissions to upload
+image layers and register image manifests.
+
+**Implementation:**
+
+Updated `infrastructure/ec2/github-oidc.yaml`.
+
+Added a new `AWS::IAM::ManagedPolicy` resource named
+`GitHubECRPublicPushPolicy`.
+
+The policy is attached to the existing `GitHubActionsRole`.
+
+The policy contains two permission groups:
+
+1. `ECRPublicAuthentication` — allows GitHub Actions to obtain
+   temporary authentication credentials for Amazon ECR Public.
+
+2. `PushPublicApplicationImages` — allows GitHub Actions to upload
+   Docker image layers and publish images to the `atu-ec2-app`
+   public repository.
+
+The existing private ECR policy remains unchanged.
+
+**My Modifications:**
+
+- Reused the existing `ATU-GitHub-Actions-ECR` IAM role.
+- Preserved the existing GitHub OIDC provider and trust policy.
+- Added a separate IAM managed policy for ECR Public.
+- Restricted image publication permissions to the project repository.
+- Preserved the existing private ECR publishing permissions.
+- Used CloudFormation to define the new IAM permissions.
+
+**Design Decision:**
+
+I decided to extend the existing GitHub Actions role instead of creating
+another IAM role.
+
+This avoids duplicating the OIDC configuration and preserves the existing
+authentication mechanism based on temporary AWS credentials.
+
+A separate managed policy keeps public and private ECR permissions
+independent and easier to review.
+
+The public ECR authentication process uses the `us-east-1` Region,
+while the EC2 application remains deployed in `eu-west-1`
+[[102]](#ref-102).
+
+**Testing and Validation:**
+
+- [x] Added the `GitHubECRPublicPushPolicy` resource.
+- [x] Reused the existing GitHub Actions IAM role.
+- [x] Preserved the private ECR publishing policy.
+- [x] Local `cfn-lint` validation passed without errors.
+- [x] `git diff --check` passed.
+- [x] Updated IAM policy deployed through CloudFormation.
+- [ ] GitHub Actions authentication to ECR Public verified.
+- [ ] Docker image publication to ECR Public verified.
+
+**Current Limitation:**
+The updated IAM policy has been defined and validated locally but has not
+yet been deployed to AWS.
+
+The GitHub Actions workflow still publishes Docker images only to the
+existing private Amazon ECR repository.
+
+Public image publication will be configured and tested in the next iteration.
+
+**References:**
+
+- Amazon ECR Public image publication documentation [[101]](#ref-101).
+- Amazon ECR Public registry authentication documentation [[102]](#ref-102).
+
+**Troubleshooting — Amazon ECR Public CloudFormation Deployment**
+
+**Problem:**
+
+The initial deployment of the `ATU-EC2-ECR-Public` CloudFormation stack
+failed because the development IAM user did not have all the permissions
+required to create and inspect CloudFormation Change Sets and the
+public ECR repository.
+
+**Reference Implementation:**
+
+I used the official AWS documentation *Control CloudFormation access
+with AWS Identity and Access Management* to review the permissions
+required for CloudFormation stack operations [[103]](#ref-103).
+
+I also consulted the AWS Service Authorization Reference for Amazon
+ECR Public to identify the permissions required for managing
+repository resources and tags [[100]](#ref-100).
+
+For troubleshooting the failed deployment, I used the official
+CloudFormation documentation *View CloudFormation stack events*
+[[104]](#ref-104).
+
+**Investigation:**
+
+The first deployment attempt failed with an `AccessDenied` error
+for `cloudformation:CreateChangeSet`.
+
+I reviewed the IAM policy and found that Change Set permissions
+had been granted for Change Set resources but not all required
+permissions had been granted on the CloudFormation stack ARN.
+
+AWS documents the use of IAM policies to control CloudFormation
+actions and access to specific resources [[103]](#ref-103).
+
+Further investigation identified missing permissions for:
+
+- `cloudformation:CreateChangeSet`
+- `cloudformation:ListChangeSets`
+- `cloudformation:DescribeChangeSet`
+- `cloudformation:ExecuteChangeSet`
+- `cloudformation:DeleteChangeSet`
+
+I extended the existing `ManagePublicECRStack` statement to allow
+these operations on the `ATU-EC2-ECR-Public` stack.
+
+The separate `ManagePublicECRChangeSets` statement was preserved.
+
+**Amazon ECR Public Tagging Error:**
+
+After correcting the CloudFormation permissions, I successfully
+created and executed a Change Set.
+
+The Change Set contained one resource:
+
+`AWS::ECR::PublicRepository`
+
+CloudFormation initially reported `CREATE_COMPLETE` for
+`PublicApplicationRepository`.
+
+However, the stack subsequently entered `ROLLBACK_IN_PROGRESS`
+because the development IAM user lacked:
+
+`ecr-public:ListTagsForResource`
+
+AWS identifies this operation as the permission required to
+retrieve tags associated with an ECR Public resource
+[[100]](#ref-100).
+
+**Root Cause:**
+
+The initial IAM policy allowed repository creation and tagging
+but did not include permission to retrieve resource tags.
+
+CloudFormation required this additional read operation while
+processing the repository resource.
+
+The missing permission caused the deployment to fail even though
+the repository had initially been created successfully.
+
+**Solution:**
+
+I updated `PublicECRDeploymentPolicy` in:
+
+`infrastructure/bootstrap/network-deployment-access.yaml`
+
+The following permission was added to the
+`ManagePublicECRRepository` statement:
+
+`ecr-public:ListTagsForResource`
+
+I then validated the updated CloudFormation template using
+`cfn-lint` and redeployed the `ATU-EC2-Bootstrap` stack.
+
+The IAM Bootstrap stack successfully reached `UPDATE_COMPLETE`.
+
+**CloudFormation Recovery:**
+
+I inspected the CloudFormation stack events to identify the
+failure reason.
+
+AWS documents the use of stack events and the
+`ResourceStatusReason` field for investigating failed
+resource operations [[104]](#ref-104).
+
+The failed stack reached `ROLLBACK_COMPLETE`.
+
+According to AWS documentation, a stack in this state cannot
+be updated and must be deleted before it can be recreated
+[[104]](#ref-104).
+
+I deleted the failed `ATU-EC2-ECR-Public` stack and repeated
+the deployment after correcting the IAM permissions.
+
+**Deployment Result:**
+
+The Amazon ECR Public repository was successfully created.
+
+Repository name:
+
+`atu-ec2-app`
+
+Repository URI:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app`
+
+The repository is intended to provide a publicly accessible
+Docker image for reproducible EC2 application deployment.
+
+Docker image publication will be configured in the next iteration.
+
+**Lessons Learned:**
+
+- IAM permissions for CloudFormation must cover the required
+  stack operations and Change Set operations [[103]](#ref-103).
+
+- CloudFormation may require additional AWS service permissions
+  beyond the initial resource creation operation [[103]](#ref-103).
+
+- Amazon ECR Public provides separate IAM actions for creating,
+  tagging and reading repository tags [[100]](#ref-100).
+
+- CloudFormation stack events and status reasons are important
+  for diagnosing deployment failures [[104]](#ref-104).
+
+- A successful resource creation event does not necessarily
+  mean that the complete CloudFormation stack deployment
+  will succeed.
+
+- Infrastructure permissions should be tested through actual
+  CloudFormation deployments, not only template validation.
+
+### Iteration 29.7.4 — Automated Docker Image Publication to Amazon ECR Public
+
+**Objective:**
+
+Extend the existing GitHub Actions CI pipeline to publish the
+containerised Java application to Amazon ECR Public.
+
+The public Docker image will allow the application to be deployed
+in another AWS account without requiring access to my private
+Amazon ECR repository.
+
+**Reference Implementation:**
+
+I used the official AWS tutorial *Pushing an image to a public
+repository in Amazon ECR Public* as the primary reference
+[[101]](#ref-101).
+
+The tutorial explains Docker authentication, image tagging
+and publication to Amazon ECR Public.
+
+I also referred to the official ECR Public authentication
+documentation [[102]](#ref-102).
+
+GitHub Actions documentation was used to configure reusable
+workflow environment variables and the Git commit SHA
+[[105]](#ref-105).
+
+**Implementation:**
+
+Updated `.github/workflows/docker-deploy.yml`.
+
+The existing workflow builds the Java application using Maven
+and creates a Docker image using Docker Buildx.
+
+I extended the workflow with two additional steps:
+
+1. `Login to Amazon ECR Public` — authenticates Docker using
+   temporary AWS credentials obtained through GitHub OIDC.
+
+2. `Tag and push Docker image to ECR Public` — tags the
+   previously built Docker image and publishes it to
+   the public repository.
+
+The public repository URI is:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app`
+
+**My Modifications:**
+
+- Reused the existing GitHub Actions workflow.
+- Preserved the Maven verification and Docker build steps.
+- Preserved publication to the existing private Amazon ECR.
+- Added authentication to Amazon ECR Public.
+- Used the existing GitHub OIDC IAM role.
+- Configured public ECR authentication through `us-east-1`.
+- Added reusable environment variables for the image name,
+  registry and public registry alias.
+- Used the Git commit SHA as the Docker image tag.
+- Reused the previously built Docker image without rebuilding it.
+- Restricted image publication to pushes to the `master` branch.
+
+**Design Decision:**
+
+I decided to publish the same Docker image to both private
+and public Amazon ECR repositories during the transition.
+
+The private repository preserves the existing deployment
+workflow, while the public repository makes the application
+image accessible without additional AWS account permissions.
+
+The image is built once and then tagged and pushed to
+the two registries.
+
+I selected the Git commit SHA as the image tag to identify
+the source revision used to build each image.
+
+This supports traceability between Git history, GitHub Actions
+executions and published Docker images.
+
+The public registry authentication uses the AWS CLI command
+`ecr-public get-login-password` with the `us-east-1` Region,
+as documented by AWS [[102]](#ref-102).
+
+**Testing and Validation:**
+
+- [x] Existing GitHub Actions workflow inspected.
+- [x] Added Amazon ECR Public authentication step.
+- [x] Added Docker image tagging and publication step.
+- [x] Preserved the existing private ECR publication.
+- [x] Reused the existing GitHub OIDC authentication mechanism.
+- [x] Added reusable workflow environment variables.
+- [x] `git diff --check` passed.
+- [ ] Updated workflow executed successfully on `master`.
+- [ ] GitHub Actions authentication to ECR Public verified.
+- [ ] Docker image publication to ECR Public verified.
+- [ ] Public Docker image downloaded without authentication.
+- [ ] CloudFormation EC2 deployment tested using the public image.
+
+**Current Limitation:**
+
+The updated workflow has been configured locally but has not
+yet been executed with the new ECR Public publication steps.
+
+The public repository exists, but the Docker image publication
+and anonymous pull must be verified after the workflow
+is merged into `master`.
+
+**References:**
+
+- Amazon ECR Public image publication [[101]](#ref-101).
+- Amazon ECR Public authentication [[102]](#ref-102).
+- GitHub Actions environment variables [[105]](#ref-105).
+
+**Troubleshooting — CloudFormation Validation Region:**
+
+The GitHub Actions CI pipeline initially failed with the following error:
+
+`E3006: Resource type 'AWS::ECR::PublicRepository' does not exist in 'eu-west-1'.`
+
+The failure occurred because the CI pipeline attempted to validate
+the Amazon ECR Public CloudFormation template in `eu-west-1`.
+
+Amazon ECR Public resources are managed through the `us-east-1`
+AWS Region [[102]](#ref-102).
+
+**Solution:**
+
+I updated the CloudFormation validation workflow to validate:
+
+- Standard infrastructure templates in `eu-west-1`.
+- The Amazon ECR Public template separately in `us-east-1`.
+
+**Validation:**
+
+- [x] `cfn-lint --regions us-east-1 -t infrastructure/ec2/ecr-public.yaml` passed.
+- [x] `git diff --check` passed.
+- [x] Updated GitHub Actions CloudFormation validation passed.
+
+This ensures that regional resource availability is correctly
+considered during infrastructure validation.
 
 ## 6. References
 
@@ -4514,3 +5031,45 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
 **[97]** Amazon Web Services (n.d.) *AWS::EC2::Instance — AWS CloudFormation Template Reference*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ec2-instance.html
 (Accessed: 27 October 2026).
+
+<a id="ref-98"></a>
+**[98]** Amazon Web Services (n.d.) *Deploy applications on Amazon EC2 — AWS CloudFormation User Guide*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/deploying.applications.html
+(Accessed: 27 October 2026).
+
+<a id="ref-99"></a>
+**[99]** Amazon Web Services (n.d.) *AWS::IAM::ManagedPolicy — AWS CloudFormation Template Reference*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-managedpolicy.html
+(Accessed: 28 October 2026).
+
+<a id="ref-100"></a>
+**[100]** Amazon Web Services (n.d.) *Actions, resources, and condition keys for Amazon Elastic Container Registry
+Public*.
+Available at: https://docs.aws.amazon.com/service-authorization/latest/reference/list_ecr-public.html
+(Accessed: 28 October 2026).
+
+<a id="ref-101"></a>
+**[101]** Amazon Web Services (n.d.) *Pushing an image to a public repository in Amazon ECR Public*.
+Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/docker-push-ecr-image.html
+(Accessed: 28 October 2026).
+
+<a id="ref-102"></a>
+**[102]** Amazon Web Services (n.d.) *Registry authentication in Amazon ECR Public*.
+Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/public-registry-auth.html
+(Accessed: 28 October 2026).
+
+<a id="ref-103"></a>
+
+**[103]** Amazon Web Services (n.d.) *Control CloudFormation access with AWS Identity and Access Management*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/control-access-with-iam.html
+(Accessed: 28 October 2026).
+
+<a id="ref-104"></a>
+**[104]** Amazon Web Services (n.d.) *View CloudFormation stack events*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html
+(Accessed: 28 October 2026).
+
+<a id="ref-105"></a>
+**[105]** GitHub (n.d.) *Store information in variables — GitHub Actions documentation*.
+Available at: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables
+(Accessed: 28 October 2026).
