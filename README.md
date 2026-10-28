@@ -4208,8 +4208,8 @@ while the EC2 application remains deployed in `eu-west-1`
 - [x] Local `cfn-lint` validation passed without errors.
 - [x] `git diff --check` passed.
 - [x] Updated IAM policy deployed through CloudFormation.
-- [ ] GitHub Actions authentication to ECR Public verified.
-- [ ] Docker image publication to ECR Public verified.
+- [x] GitHub Actions authentication to ECR Public verified.
+- [x] Docker image publication to ECR Public verified.
 
 **Current Limitation:**
 The updated IAM policy has been defined and validated locally but has not
@@ -4469,11 +4469,11 @@ as documented by AWS [[102]](#ref-102).
 - [x] Reused the existing GitHub OIDC authentication mechanism.
 - [x] Added reusable workflow environment variables.
 - [x] `git diff --check` passed.
-- [ ] Updated workflow executed successfully on `master`.
-- [ ] GitHub Actions authentication to ECR Public verified.
-- [ ] Docker image publication to ECR Public verified.
-- [ ] Public Docker image downloaded without authentication.
-- [ ] CloudFormation EC2 deployment tested using the public image.
+- [x] Updated workflow executed successfully on `master`.
+- [x] GitHub Actions authentication to ECR Public verified.
+- [x] Docker image publication to ECR Public verified.
+- [x] Public Docker image downloaded without authentication.
+- [x] CloudFormation EC2 deployment tested using the public image.
 
 **Current Limitation:**
 
@@ -4517,6 +4517,266 @@ I updated the CloudFormation validation workflow to validate:
 
 This ensures that regional resource availability is correctly
 considered during infrastructure validation.
+
+### Iteration 29.7.5 — Verification of Amazon ECR Public Image Publication
+
+**Objective:**
+
+Verify that GitHub Actions successfully publishes the Java application
+Docker image to Amazon ECR Public and that the image can be downloaded
+without AWS authentication.
+
+**Reference Implementation:**
+
+I used the official AWS documentation *Pulling an image from the
+Amazon ECR Public Gallery* to verify unauthenticated Docker image
+downloads [[106]](#ref-106).
+
+I also consulted the AWS Service Authorization Reference for Amazon
+ECR Public to identify the IAM permission required to inspect
+published Docker images [[100]](#ref-100).
+
+**Implementation:**
+
+After merging Pull Request #29 into `master`, the GitHub Actions
+workflow published the application Docker image to Amazon ECR Public.
+
+Repository:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app`
+
+Git commit SHA:
+
+`fc4b4b71c4c1a131b6be47e4e48534ad37f7e921`
+
+Image digest:
+
+`sha256:048835a709824114f3c6380a30f7d8f9b78d636d45bd173b0746db67ab0d5730`
+
+**Troubleshooting — Missing IAM Permission:**
+
+The initial image verification attempt failed with:
+
+`AccessDeniedException: ecr-public:DescribeImages`
+
+The development IAM user did not have permission to retrieve
+metadata about images stored in the public repository.
+
+According to the AWS Service Authorization Reference,
+`ecr-public:DescribeImages` grants permission to retrieve
+image metadata, including tags and image digests [[100]](#ref-100).
+
+I added this permission to the existing
+`ManagePublicECRRepository` statement in:
+
+`infrastructure/bootstrap/network-deployment-access.yaml`
+
+After validating the template using `cfn-lint`, I redeployed
+the `ATU-EC2-Bootstrap` CloudFormation stack.
+
+The deployment completed successfully.
+
+**Image Verification:**
+
+I used the AWS CLI command `ecr-public describe-images` to
+retrieve the image tag and digest.
+
+The command returned the Git commit SHA tag and image digest,
+confirming that the image was present in the public repository.
+
+**Unauthenticated Docker Pull:**
+
+To verify public accessibility, I removed the Docker registry
+credentials using:
+
+`docker logout public.ecr.aws`
+
+I then downloaded the published image using:
+
+`docker pull public.ecr.aws/e1c9y1q6/atu-ec2-app:fc4b4b71c4c1a131b6be47e4e48534ad37f7e921`
+
+Docker successfully downloaded all image layers.
+
+The downloaded image digest matched the digest reported by
+Amazon ECR Public.
+
+AWS documents that public images can be downloaded without
+authentication and recommends `docker logout public.ecr.aws`
+when verifying unauthenticated pulls [[106]](#ref-106).
+
+**Testing and Validation:**
+
+- [x] Pull Request #29 merged into `master`.
+- [x] GitHub Actions published the Docker image to ECR Public.
+- [x] Added the missing `ecr-public:DescribeImages` IAM permission.
+- [x] CloudFormation template validation passed.
+- [x] IAM Bootstrap stack updated successfully.
+- [x] Published image SHA tag verified.
+- [x] Published image digest verified.
+- [x] Docker registry credentials removed.
+- [x] Docker image downloaded without authentication.
+- [x] Downloaded image digest matched the published digest.
+- [ ] Automated deployment on a newly provisioned EC2 instance verified.
+
+**Conclusion:**
+
+Amazon ECR Public image publication and unauthenticated image
+retrieval were successfully verified.
+
+The published Docker image can be retrieved without granting
+the consuming AWS account access to the original private ECR.
+
+The next stage is to configure the EC2 CloudFormation template
+to use the verified public image and test automated application
+deployment through EC2 UserData.
+
+### Iteration 29.7.6 — Reproducible EC2 Deployment Using CloudFormation UserData
+
+**Objective:**
+
+Verify that the Java application can be deployed automatically on a
+new Amazon EC2 instance using AWS CloudFormation UserData, without
+manually installing Docker or deploying the application through SSM.
+
+**Reference Implementation:**
+
+I followed the official AWS documentation *Run commands when you launch
+an EC2 instance with user data input* to configure and verify
+first-launch automation [[107]](#ref-107).
+
+I also used the AWS documentation for Systems Manager Run Command
+to inspect the deployment results remotely [[108]](#ref-108).
+
+The application Docker image was retrieved from Amazon ECR Public,
+which supports unauthenticated image downloads [[106]](#ref-106).
+
+**Implementation:**
+
+I recreated the existing `ATU-EC2-Instance` CloudFormation stack
+using the updated template:
+
+`infrastructure/ec2/instance.yaml`
+
+The previous EC2 instance was replaced with a newly provisioned
+Amazon Linux 2023 instance.
+
+New EC2 instance ID:
+
+`i-0d455a3e1dc4eea7b`
+
+Instance type:
+
+`t3.micro`
+
+The CloudFormation UserData script automatically:
+
+1. Enabled the AWS Systems Manager Agent.
+2. Installed Docker using `dnf`.
+3. Enabled and started the Docker service.
+4. Downloaded the Java application image from Amazon ECR Public.
+5. Started the application container with restricted privileges.
+6. Configured the DynamoDB table name and AWS Region.
+7. Verified the `/health` and `/message` application endpoints.
+
+The Docker image used was:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app:fc4b4b71c4c1a131b6be47e4e48534ad37f7e921`
+
+**My Modifications:**
+
+- Reused the existing CloudFormation network infrastructure.
+- Reused the existing EC2 IAM Instance Profile.
+- Reused the existing DynamoDB table.
+- Used the public ECR image instead of requiring private ECR authentication.
+- Automated Docker installation and container startup through UserData.
+- Configured Docker to restart the container unless explicitly stopped.
+- Preserved container security restrictions, including a non-root user,
+  dropped Linux capabilities and a read-only root filesystem.
+- Added application startup verification to the UserData script.
+- Verified the deployment remotely through AWS Systems Manager.
+
+**Testing and Validation:**
+
+- [x] CloudFormation template validated using `cfn-lint`.
+- [x] Existing EC2 CloudFormation stack recreated successfully.
+- [x] New EC2 instance provisioned using Amazon Linux 2023.
+- [x] AWS Systems Manager Agent reported `Online`.
+- [x] Docker automatically installed and started.
+- [x] Docker service reported `active`.
+- [x] Public ECR Docker image downloaded successfully.
+- [x] Docker image digest matched the published ECR Public digest.
+- [x] Java application container started automatically.
+- [x] Docker container reported `Up 5 minutes`.
+- [x] GET `/health` returned HTTP 200.
+- [x] GET `/message` returned HTTP 200.
+- [x] DynamoDB returned one existing application message.
+- [x] Cloud-init completed successfully.
+- [x] AWS Systems Manager Run Command completed successfully.
+- [x] No manual application installation or Docker deployment was required.
+
+**Deployment Evidence:**
+CloudFormation stack:
+
+`ATU-EC2-Instance`
+
+CloudFormation status:
+
+`CREATE_COMPLETE`
+
+Docker service:
+
+`active`
+
+Application container:
+
+`atu-ec2-app`
+
+Health endpoint response:
+
+`{"service":"ec2-app","status":"UP"}`
+
+Message endpoint:
+Returned HTTP 200 with one message retrieved from DynamoDB.
+Cloud-init completion:
+
+`Cloud-init v. 22.2.2 finished at Wed, 28 Oct 2026 11:19:46 +0000.`
+
+**Troubleshooting:**
+The initial AWS Systems Manager verification command failed because
+PowerShell incorrectly interpreted the JSON parameter containing
+multiple shell commands.
+
+I resolved this by generating a JSON parameter file using
+PowerShell `ConvertTo-Json` and passing the file to the AWS CLI
+using the `file://` syntax.
+
+The subsequent Systems Manager Run Command completed successfully.
+
+The cloud-init output also contained two temporary HTTP connection
+errors while the Java application was starting.
+
+The UserData startup verification loop retried the health endpoint,
+and the third attempt succeeded.
+
+Both application endpoints subsequently returned HTTP 200.
+
+AWS recommends checking `/var/log/cloud-init-output.log` to diagnose
+the execution of EC2 UserData scripts [[107]](#ref-107).
+
+**Conclusion:**
+
+The Java application was successfully deployed on a newly provisioned
+Amazon EC2 instance using CloudFormation UserData.
+
+Docker installation, public image retrieval, container startup and
+application health verification completed automatically.
+
+This confirms that the EC2 application deployment can be reproduced
+without manual server configuration in the tested AWS environment.
+
+The deployment still depends on the supporting CloudFormation
+infrastructure, including the network, IAM Instance Profile and
+DynamoDB table.
 
 ## 6. References
 
@@ -5072,4 +5332,19 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/vie
 <a id="ref-105"></a>
 **[105]** GitHub (n.d.) *Store information in variables — GitHub Actions documentation*.
 Available at: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables
+(Accessed: 28 October 2026).
+<a id="ref-106"></a>
+
+**[106]** Amazon Web Services (n.d.) *Pulling an image from the Amazon ECR Public Gallery*.
+Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/docker-pull-ecr-image.html
+(Accessed: 28 October 2026).
+
+<a id="ref-107"></a>
+**[107]** Amazon Web Services (n.d.) *Run commands when you launch an EC2 instance with user data input*.
+Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
+(Accessed: 28 October 2026).
+
+<a id="ref-108"></a>
+**[108]** Amazon Web Services (n.d.) *GetCommandInvocation — AWS Systems Manager API Reference*.
+Available at: https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_GetCommandInvocation.html
 (Accessed: 28 October 2026).

@@ -326,6 +326,7 @@ Resources:
               - ecr-public:TagResource
               - ecr-public:UntagResource
               - ecr-public:ListTagsForResource
+              - ecr-public:DescribeImages
             Resource: !Sub arn:${AWS::Partition}:ecr-public::${AWS::AccountId}:repository/atu-ec2-app
 
 Outputs:
