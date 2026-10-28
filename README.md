@@ -4134,7 +4134,97 @@ can publish Docker images to Amazon ECR Public.
 
 - AWS CloudFormation managed policy documentation [[99]](#ref-99).
 - Amazon ECR Public IAM authorization reference [[100]](#ref-100).
--
+
+### Iteration 29.7.3 — GitHub Actions IAM Permissions for Amazon ECR Public
+
+**Objective:**
+Extend the existing GitHub Actions IAM role to support publishing Docker images
+to Amazon ECR Public without creating a new IAM role or changing the existing
+OIDC authentication configuration.
+
+The public Docker image will be used for reproducible deployment of the Java
+application through AWS CloudFormation.
+
+**Reference Implementation:**
+
+I used the official Amazon ECR Public documentation for Docker image
+publication [[101]](#ref-101) and registry authentication [[102]](#ref-102).
+
+AWS requires `ecr-public:GetAuthorizationToken` and
+`sts:GetServiceBearerToken` permissions for ECR Public authentication.
+
+The Docker image publication process also requires permissions to upload
+image layers and register image manifests.
+
+**Implementation:**
+
+Updated `infrastructure/ec2/github-oidc.yaml`.
+
+Added a new `AWS::IAM::ManagedPolicy` resource named
+`GitHubECRPublicPushPolicy`.
+
+The policy is attached to the existing `GitHubActionsRole`.
+
+The policy contains two permission groups:
+
+1. `ECRPublicAuthentication` — allows GitHub Actions to obtain
+   temporary authentication credentials for Amazon ECR Public.
+
+2. `PushPublicApplicationImages` — allows GitHub Actions to upload
+   Docker image layers and publish images to the `atu-ec2-app`
+   public repository.
+
+The existing private ECR policy remains unchanged.
+
+**My Modifications:**
+
+- Reused the existing `ATU-GitHub-Actions-ECR` IAM role.
+- Preserved the existing GitHub OIDC provider and trust policy.
+- Added a separate IAM managed policy for ECR Public.
+- Restricted image publication permissions to the project repository.
+- Preserved the existing private ECR publishing permissions.
+- Used CloudFormation to define the new IAM permissions.
+
+**Design Decision:**
+
+I decided to extend the existing GitHub Actions role instead of creating
+another IAM role.
+
+This avoids duplicating the OIDC configuration and preserves the existing
+authentication mechanism based on temporary AWS credentials.
+
+A separate managed policy keeps public and private ECR permissions
+independent and easier to review.
+
+The public ECR authentication process uses the `us-east-1` Region,
+while the EC2 application remains deployed in `eu-west-1`
+[[102]](#ref-102).
+
+**Testing and Validation:**
+
+- [x] Added the `GitHubECRPublicPushPolicy` resource.
+- [x] Reused the existing GitHub Actions IAM role.
+- [x] Preserved the private ECR publishing policy.
+- [x] Local `cfn-lint` validation passed without errors.
+- [x] `git diff --check` passed.
+- [ ] Updated IAM policy deployed through CloudFormation.
+- [ ] GitHub Actions authentication to ECR Public verified.
+- [ ] Docker image publication to ECR Public verified.
+
+**Current Limitation:**
+The updated IAM policy has been defined and validated locally but has not
+yet been deployed to AWS.
+
+The GitHub Actions workflow still publishes Docker images only to the
+existing private Amazon ECR repository.
+
+Public image publication will be configured and tested in the next iteration.
+
+**References:**
+
+- Amazon ECR Public image publication documentation [[101]](#ref-101).
+- Amazon ECR Public registry authentication documentation [[102]](#ref-102).
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -4662,4 +4752,14 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 <a id="ref-100"></a>
 **[100]** Amazon Web Services (n.d.) *Actions, resources, and condition keys for Amazon Elastic Container Registry Public*.
 Available at: https://docs.aws.amazon.com/service-authorization/latest/reference/list_ecr-public.html
+(Accessed: 28 October 2026).
+
+<a id="ref-101"></a>
+**[101]** Amazon Web Services (n.d.) *Pushing an image to a public repository in Amazon ECR Public*.
+Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/docker-push-ecr-image.html
+(Accessed: 28 October 2026).
+
+<a id="ref-102"></a>
+**[102]** Amazon Web Services (n.d.) *Registry authentication in Amazon ECR Public*.
+Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/public-registry-auth.html
 (Accessed: 28 October 2026).

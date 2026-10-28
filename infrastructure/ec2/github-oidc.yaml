@@ -62,7 +62,36 @@ Resources:
               - ecr:BatchGetImage
             Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/atu-ec2-app
 
+  GitHubECRPublicPushPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Permissions for GitHub Actions to publish Docker images
+        to the ATU Amazon ECR Public repository.
 
+      Roles:
+        - !Ref GitHubActionsRole
+
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+
+          - Sid: ECRPublicAuthentication
+            Effect: Allow
+            Action:
+              - ecr-public:GetAuthorizationToken
+              - sts:GetServiceBearerToken
+            Resource: '*'
+
+          - Sid: PushPublicApplicationImages
+            Effect: Allow
+            Action:
+              - ecr-public:BatchCheckLayerAvailability
+              - ecr-public:InitiateLayerUpload
+              - ecr-public:UploadLayerPart
+              - ecr-public:CompleteLayerUpload
+              - ecr-public:PutImage
+            Resource: !Sub arn:${AWS::Partition}:ecr-public::${AWS::AccountId}:repository/atu-ec2-app
 Outputs:
 
   GitHubActionsRoleArn:
