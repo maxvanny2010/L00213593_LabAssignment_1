@@ -4473,7 +4473,7 @@ as documented by AWS [[102]](#ref-102).
 - [x] GitHub Actions authentication to ECR Public verified.
 - [x] Docker image publication to ECR Public verified.
 - [x] Public Docker image downloaded without authentication.
-- [ ] CloudFormation EC2 deployment tested using the public image.
+- [x] CloudFormation EC2 deployment tested using the public image.
 
 **Current Limitation:**
 
@@ -4629,6 +4629,154 @@ the consuming AWS account access to the original private ECR.
 The next stage is to configure the EC2 CloudFormation template
 to use the verified public image and test automated application
 deployment through EC2 UserData.
+
+### Iteration 29.7.6 — Reproducible EC2 Deployment Using CloudFormation UserData
+
+**Objective:**
+
+Verify that the Java application can be deployed automatically on a
+new Amazon EC2 instance using AWS CloudFormation UserData, without
+manually installing Docker or deploying the application through SSM.
+
+**Reference Implementation:**
+
+I followed the official AWS documentation *Run commands when you launch
+an EC2 instance with user data input* to configure and verify
+first-launch automation [[107]](#ref-107).
+
+I also used the AWS documentation for Systems Manager Run Command
+to inspect the deployment results remotely [[108]](#ref-108).
+
+The application Docker image was retrieved from Amazon ECR Public,
+which supports unauthenticated image downloads [[106]](#ref-106).
+
+**Implementation:**
+
+I recreated the existing `ATU-EC2-Instance` CloudFormation stack
+using the updated template:
+
+`infrastructure/ec2/instance.yaml`
+
+The previous EC2 instance was replaced with a newly provisioned
+Amazon Linux 2023 instance.
+
+New EC2 instance ID:
+
+`i-0d455a3e1dc4eea7b`
+
+Instance type:
+
+`t3.micro`
+
+The CloudFormation UserData script automatically:
+
+1. Enabled the AWS Systems Manager Agent.
+2. Installed Docker using `dnf`.
+3. Enabled and started the Docker service.
+4. Downloaded the Java application image from Amazon ECR Public.
+5. Started the application container with restricted privileges.
+6. Configured the DynamoDB table name and AWS Region.
+7. Verified the `/health` and `/message` application endpoints.
+
+The Docker image used was:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app:fc4b4b71c4c1a131b6be47e4e48534ad37f7e921`
+
+**My Modifications:**
+
+- Reused the existing CloudFormation network infrastructure.
+- Reused the existing EC2 IAM Instance Profile.
+- Reused the existing DynamoDB table.
+- Used the public ECR image instead of requiring private ECR authentication.
+- Automated Docker installation and container startup through UserData.
+- Configured Docker to restart the container unless explicitly stopped.
+- Preserved container security restrictions, including a non-root user,
+  dropped Linux capabilities and a read-only root filesystem.
+- Added application startup verification to the UserData script.
+- Verified the deployment remotely through AWS Systems Manager.
+
+**Testing and Validation:**
+
+- [x] CloudFormation template validated using `cfn-lint`.
+- [x] Existing EC2 CloudFormation stack recreated successfully.
+- [x] New EC2 instance provisioned using Amazon Linux 2023.
+- [x] AWS Systems Manager Agent reported `Online`.
+- [x] Docker automatically installed and started.
+- [x] Docker service reported `active`.
+- [x] Public ECR Docker image downloaded successfully.
+- [x] Docker image digest matched the published ECR Public digest.
+- [x] Java application container started automatically.
+- [x] Docker container reported `Up 5 minutes`.
+- [x] GET `/health` returned HTTP 200.
+- [x] GET `/message` returned HTTP 200.
+- [x] DynamoDB returned one existing application message.
+- [x] Cloud-init completed successfully.
+- [x] AWS Systems Manager Run Command completed successfully.
+- [x] No manual application installation or Docker deployment was required.
+
+**Deployment Evidence:**
+CloudFormation stack:
+
+`ATU-EC2-Instance`
+
+CloudFormation status:
+
+`CREATE_COMPLETE`
+
+Docker service:
+
+`active`
+
+Application container:
+
+`atu-ec2-app`
+
+Health endpoint response:
+
+`{"service":"ec2-app","status":"UP"}`
+
+Message endpoint:
+Returned HTTP 200 with one message retrieved from DynamoDB.
+Cloud-init completion:
+
+`Cloud-init v. 22.2.2 finished at Wed, 28 Oct 2026 11:19:46 +0000.`
+
+**Troubleshooting:**
+The initial AWS Systems Manager verification command failed because
+PowerShell incorrectly interpreted the JSON parameter containing
+multiple shell commands.
+
+I resolved this by generating a JSON parameter file using
+PowerShell `ConvertTo-Json` and passing the file to the AWS CLI
+using the `file://` syntax.
+
+The subsequent Systems Manager Run Command completed successfully.
+
+The cloud-init output also contained two temporary HTTP connection
+errors while the Java application was starting.
+
+The UserData startup verification loop retried the health endpoint,
+and the third attempt succeeded.
+
+Both application endpoints subsequently returned HTTP 200.
+
+AWS recommends checking `/var/log/cloud-init-output.log` to diagnose
+the execution of EC2 UserData scripts [[107]](#ref-107).
+
+**Conclusion:**
+
+The Java application was successfully deployed on a newly provisioned
+Amazon EC2 instance using CloudFormation UserData.
+
+Docker installation, public image retrieval, container startup and
+application health verification completed automatically.
+
+This confirms that the EC2 application deployment can be reproduced
+without manual server configuration in the tested AWS environment.
+
+The deployment still depends on the supporting CloudFormation
+infrastructure, including the network, IAM Instance Profile and
+DynamoDB table.
 
 ## 6. References
 
@@ -5189,4 +5337,14 @@ Available at: https://docs.github.com/en/actions/how-tos/write-workflows/choose-
 
 **[106]** Amazon Web Services (n.d.) *Pulling an image from the Amazon ECR Public Gallery*.
 Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/docker-pull-ecr-image.html
+(Accessed: 28 October 2026).
+
+<a id="ref-107"></a>
+**[107]** Amazon Web Services (n.d.) *Run commands when you launch an EC2 instance with user data input*.
+Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
+(Accessed: 28 October 2026).
+
+<a id="ref-108"></a>
+**[108]** Amazon Web Services (n.d.) *GetCommandInvocation — AWS Systems Manager API Reference*.
+Available at: https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_GetCommandInvocation.html
 (Accessed: 28 October 2026).
