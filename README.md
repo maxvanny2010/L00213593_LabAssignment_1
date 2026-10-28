@@ -5140,6 +5140,85 @@ IAM policy after each EC2 replacement.
 The successful SSM test confirms that the updated permissions work with the current EC2 instance.
 This improves infrastructure reproducibility while preserving project-specific IAM access restrictions.
 
+### Iteration 29.8.8 — Removing Dependency on an Existing IAM Group
+
+**Objective:**
+
+Remove the requirement for a pre-existing IAM developer group when deploying the IAM Bootstrap infrastructure in another
+AWS account.
+
+**Reference Implementation:**
+
+I used the official AWS CloudFormation documentation for resource conditions and conditional expressions to implement
+optional IAM group creation [[118]](#ref-118).
+
+I also consulted the CloudFormation documentation for `AWS::IAM::Group` and
+`Fn::If` [[119]](#ref-119) [[120]](#ref-120).
+
+**Implementation:**
+
+Updated `infrastructure/bootstrap/network-deployment-access.yaml`.
+
+Added the `UseExistingDeveloperGroup` parameter with two supported values:
+
+- `true` — reuse an existing IAM group.
+- `false` — create a new IAM group using CloudFormation.
+
+Added the `CreateDeveloperGroup` condition and the `DeveloperGroup` resource using `AWS::IAM::Group`.
+
+Updated three IAM Managed Policies to use conditional group references:
+
+- `NetworkDeploymentPolicy`
+- `GitHubOIDCDeploymentPolicy`
+- `PublicECRDeploymentPolicy`
+
+When `UseExistingDeveloperGroup=false`, CloudFormation creates the IAM group and attaches all three managed policies.
+
+When `UseExistingDeveloperGroup=true`, the template references the existing group.
+
+**Testing and Validation:**
+
+Created a temporary CloudFormation stack using the updated template:
+
+`ATU-Bootstrap-Repro-Test`
+
+Deployment parameters:
+
+- `UseExistingDeveloperGroup=false`
+- `DeveloperGroupName=ATU-Lab-Repro-Test-20261028`
+
+**Actual Results:**
+
+- [x] Local `cfn-lint` validation passed.
+- [x] `git diff --check` passed.
+- [x] Temporary CloudFormation stack created successfully.
+- [x] Stack reached `CREATE_COMPLETE`.
+- [x] New IAM group created through CloudFormation.
+- [x] All three IAM Managed Policies created.
+- [x] All three policies attached to the new IAM group.
+- [x] Test group contained no IAM users.
+- [x] Temporary CloudFormation stack deleted successfully.
+- [x] Stack deletion completed successfully.
+- [x] IAM group removal confirmed through `NoSuchEntity`.
+- [x] Existing production lab infrastructure remained unchanged.
+
+**Design Decision:**
+I selected conditional resource creation to support both existing and newly provisioned IAM groups.This avoids requiring manual group creation before deploying the IAM Bootstrap template.
+
+The existing IAM group is preserved in the original AWS account, while a new group can be provisioned automatically in another account.
+
+**Limitations:**
+The test was performed in the existing AWS account using a separate temporary CloudFormation stack.
+
+It confirms that the IAM group and its managed policies can be created and removed automatically.It does not yet demonstrate complete infrastructure deployment in a different AWS account.
+
+IAM user creation and group membership are not automated by this template.
+
+**Conclusion:**
+The IAM Bootstrap template successfully supports automatic IAM group creation.A temporary CloudFormation deployment confirmed that all three managed policies were attached to the newly created group.
+
+The temporary infrastructure was subsequently removed through CloudFormation. The dependency on a manually created IAM group has been eliminated for the new-group deployment scenario.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -5746,4 +5825,19 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/usi
 <a id="ref-115"></a>
 **[115]** Amazon Web Services (n.d.) *Fn::Sub*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-sub.html
+(Accessed: 28 October 2026).
+
+<a id="ref-118"></a>
+**[118]** Amazon Web Services (n.d.) *CloudFormation conditions section*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-conditions.html
+(Accessed: 28 October 2026).
+
+<a id="ref-119"></a>
+**[119]** Amazon Web Services (n.d.) *AWS::IAM::Group*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-group.html
+(Accessed: 28 October 2026).
+
+<a id="ref-120"></a>
+**[120]** Amazon Web Services (n.d.) *Fn::If*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-conditions.html#intrinsic-function-reference-conditions-if
 (Accessed: 28 October 2026).

@@ -8,9 +8,26 @@ Parameters:
   DeveloperGroupName:
     Type: String
     Default: ATU-DevOps-Lab-Developers
-    Description: Existing IAM developer group
+    Description: IAM developer group name
+
+  UseExistingDeveloperGroup:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether to reuse an existing IAM group
+
+Conditions:
+  CreateDeveloperGroup: !Equals [ !Ref UseExistingDeveloperGroup, 'false' ]
 
 Resources:
+
+  DeveloperGroup:
+    Type: AWS::IAM::Group
+    Condition: CreateDeveloperGroup
+    Properties:
+      GroupName: !Ref DeveloperGroupName
 
   NetworkDeploymentPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -19,7 +36,10 @@ Resources:
         Permissions for the ATU EC2 network CloudFormation stack.
 
       Groups:
-        - !Ref DeveloperGroupName
+        - !If
+          - CreateDeveloperGroup
+          - !Ref DeveloperGroup
+          - !Ref DeveloperGroupName
 
       PolicyDocument:
         Version: '2012-10-17'
@@ -233,7 +253,10 @@ Resources:
         Permissions to deploy GitHub Actions OIDC infrastructure.
 
       Groups:
-        - !Ref DeveloperGroupName
+        - !If
+          - CreateDeveloperGroup
+          - !Ref DeveloperGroup
+          - !Ref DeveloperGroupName
 
       PolicyDocument:
         Version: '2012-10-17'
@@ -287,7 +310,10 @@ Resources:
         repository using AWS CloudFormation.
 
       Groups:
-        - !Ref DeveloperGroupName
+        - !If
+          - CreateDeveloperGroup
+          - !Ref DeveloperGroup
+          - !Ref DeveloperGroupName
 
       PolicyDocument:
         Version: '2012-10-17'
