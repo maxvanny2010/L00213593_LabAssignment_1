@@ -4019,12 +4019,11 @@ container startup and application verification.
 
 - [x] Updated CloudFormation template passed local `cfn-lint` validation.
 - [x] Existing container configuration verified through AWS Systems Manager.
-- [ ] Simplified UserData tested on a newly provisioned EC2 instance.
-- [ ] Public GHCR image published and verified.
+- [x] Simplified UserData tested on a newly provisioned EC2 instance.
+- [x] Public Amazon ECR image published and verified (Iteration 29.7.5).
 
-**Current Limitation:**
-The simplified bootstrap configuration has not yet been tested on a new EC2 instance.
-The public Docker image must be published before deployment.
+**Final Verification:**
+The original GHCR proposal was replaced with Amazon ECR Public. The public image was successfully published by GitHub Actions, downloaded without registry authentication, and used to bootstrap a newly provisioned EC2 instance. The automated UserData deployment was verified in Iteration 29.7.6 and repeated in Iteration 29.8.6.
 
 **Reference Implementation:**
 I used the official AWS CloudFormation tutorial *Deploy applications on Amazon EC2* as the primary
@@ -4120,15 +4119,11 @@ while the Java application EC2 instance remains in `eu-west-1`.
 - [x] Restricted permissions to the project repository and stack.
 - [x] Local `cfn-lint` validation passed without errors.
 - [x] `git diff --check` passed.
-- [ ] Updated IAM Bootstrap stack deployed to AWS.
-- [ ] Public ECR repository deployed and verified.
+- [x] Updated IAM Bootstrap stack deployed to AWS.
+- [x] Public ECR repository deployed and verified.
 
-**Current Limitation:**
-The new IAM policy has been defined and validated locally but has not
-yet been deployed to AWS.
-
-The GitHub Actions role also requires separate permissions before it
-can publish Docker images to Amazon ECR Public.
+**Final Status:**
+The IAM Bootstrap stack was deployed successfully, and the Amazon ECR Public repository was created and verified. GitHub Actions publication permissions were added and verified in Iterations 29.7.3–29.7.5.
 
 **References:**
 
@@ -4211,14 +4206,8 @@ while the EC2 application remains deployed in `eu-west-1`
 - [x] GitHub Actions authentication to ECR Public verified.
 - [x] Docker image publication to ECR Public verified.
 
-**Current Limitation:**
-The updated IAM policy has been defined and validated locally but has not
-yet been deployed to AWS.
-
-The GitHub Actions workflow still publishes Docker images only to the
-existing private Amazon ECR repository.
-
-Public image publication will be configured and tested in the next iteration.
+**Final Status:**
+The updated IAM policy was deployed successfully. GitHub Actions authenticated using OIDC and published the application image to Amazon ECR Public. The published image and an unauthenticated Docker pull were verified in Iterations 29.7.4–29.7.5.
 
 **References:**
 
@@ -4475,14 +4464,9 @@ as documented by AWS [[102]](#ref-102).
 - [x] Public Docker image downloaded without authentication.
 - [x] CloudFormation EC2 deployment tested using the public image.
 
-**Current Limitation:**
+**Final Verification:**
 
-The updated workflow has been configured locally but has not
-yet been executed with the new ECR Public publication steps.
-
-The public repository exists, but the Docker image publication
-and anonymous pull must be verified after the workflow
-is merged into `master`.
+After Pull Request #29 was merged into `master`, GitHub Actions successfully published the image to Amazon ECR Public. The repository image tag and digest were verified, and an unauthenticated Docker pull succeeded (Iteration 29.7.5). The same public image was subsequently used in a successful fresh EC2 deployment (Iterations 29.7.6 and 29.8.6).
 
 **References:**
 
@@ -4616,7 +4600,7 @@ when verifying unauthenticated pulls [[106]](#ref-106).
 - [x] Docker registry credentials removed.
 - [x] Docker image downloaded without authentication.
 - [x] Downloaded image digest matched the published digest.
-- [ ] Automated deployment on a newly provisioned EC2 instance verified.
+- [x] Automated deployment on a newly provisioned EC2 instance verified.
 
 **Conclusion:**
 
@@ -4921,7 +4905,7 @@ to preserve the current application configuration.
 - [x] `git diff --check` passed.
 - [x] CloudFormation Change Set creation attempted.
 - [x] Confirmed that CloudFormation detected no resource changes.
-- [ ] Updated parameterized template deployed successfully.
+- [x] Updated parameterized template deployed successfully.
 - [ ] CORS verified with a different CloudFront domain.
 
 **Conclusion:**
@@ -4931,8 +4915,90 @@ CloudFormation parameter in the local template.
 The attempted update produced no resource changes because the
 resolved CORS value was unchanged.
 
-The parameterised template will be deployed together with a
-subsequent infrastructure update.
+The parameterised template was subsequently deployed during Iteration 29.8.6, when the `ATU-Three-Tier` stack was updated to export the DynamoDB table name. A separate CORS test using a different CloudFront origin remains outstanding.
+
+
+### Iteration 29.8.6 — Removing Hardcoded DynamoDB Table Name from EC2
+
+**Objective:**
+
+Remove the hardcoded DynamoDB table name from the EC2 CloudFormation template and configure automatic retrieval of the table name through CloudFormation cross-stack references.
+
+**Reference Implementation:**
+
+I used the official AWS documentation *Get exported outputs from a deployed CloudFormation stack* to configure `Export` and `Fn::ImportValue` [[114]](#ref-114).
+
+I also consulted the AWS CloudFormation documentation for `Fn::Sub` to pass the imported table name into the EC2 UserData script [[115]](#ref-115).
+
+**Implementation:**
+
+The original EC2 template contained a hardcoded DynamoDB table name:
+
+`ATU-Three-Tier-messages`
+
+This created a dependency on the name of the CloudFormation stack used to provision the DynamoDB table.
+
+I added an `Export` to the `MessagesTableName` output in `infrastructure/three-tier.yaml`:
+
+`ATU-Three-Tier-MessagesTableName`
+
+I removed the `DynamoTableName` parameter from `infrastructure/ec2/instance.yaml`.
+
+The EC2 UserData configuration now uses `Fn::Sub` with a variable mapping to retrieve the DynamoDB table name through `Fn::ImportValue`.
+
+The imported value is passed to the Java application through the `TABLE_NAME` environment variable.
+
+**Deployment and Verification:**
+
+I updated the `ATU-Three-Tier` CloudFormation stack and verified that the DynamoDB table name was exported successfully.
+
+The exported value was:
+
+`ATU-Three-Tier-messages`
+
+I then deleted and recreated the existing `ATU-EC2-Instance` CloudFormation stack using the updated template.
+
+New EC2 instance:
+
+`i-0442df0132f2e9394`
+
+The new instance automatically installed Docker, downloaded the application image from Amazon ECR Public and started the Java application.
+
+AWS Systems Manager Run Command was used to verify the deployment.
+
+**Testing and Validation:**
+
+- [x] DynamoDB table name exported through CloudFormation.
+- [x] DynamoDB Export verified using AWS CLI.
+- [x] Removed the hardcoded `DynamoTableName` parameter.
+- [x] Configured `Fn::ImportValue` inside `Fn::Sub`.
+- [x] CloudFormation lint validation passed.
+- [x] Existing EC2 CloudFormation stack recreated successfully.
+- [x] Docker Engine started automatically.
+- [x] Docker container started successfully.
+- [x] GET `/health` returned HTTP 200.
+- [x] GET `/message` returned HTTP 200.
+- [x] DynamoDB returned one existing message.
+- [x] Cloud-init completed successfully.
+- [x] AWS Systems Manager Run Command completed successfully.
+
+**Troubleshooting:**
+During template validation, `git diff --check` detected trailing whitespace in the modified UserData section.The whitespace was removed before deployment.
+
+The initial CloudFormation Change Set reported conditional EC2 replacement because the `UserData` property had changed.
+
+Since the objective was to verify deployment on a clean instance, I deleted and recreated the existing EC2 stack rather than updating the running instance.
+
+During startup, the health verification loop initially received connection reset errors while the Java application was starting.
+
+The subsequent retry succeeded, and both application endpoints returned HTTP 200.
+
+**Conclusion:**
+The EC2 application no longer depends on a hardcoded DynamoDB table name.
+CloudFormation automatically retrieves the DynamoDB table name from the three-tier infrastructure stack.
+
+The successful deployment confirms that the Java application can be provisioned automatically using the exported DynamoDB table name.
+The deployment requires the exporting CloudFormation stack to exist in the same AWS account and Region before the EC2 stack is created.
 
 ## 6. References
 
@@ -5530,4 +5596,14 @@ Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-
 <a id="ref-113"></a>
 **[113]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Api*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-api.html
+(Accessed: 28 October 2026).
+
+<a id="ref-114"></a>
+**[114]** Amazon Web Services (n.d.) *Get exported outputs from a deployed CloudFormation stack*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html
+(Accessed: 28 October 2026).
+
+<a id="ref-115"></a>
+**[115]** Amazon Web Services (n.d.) *Fn::Sub*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-sub.html
 (Accessed: 28 October 2026).

@@ -151,6 +151,8 @@ Outputs:
   MessagesTableName:
     Description: Name of the DynamoDB messages table
     Value: !Ref MessagesTable
+    Export:
+      Name: ATU-Three-Tier-MessagesTableName
 
   MessageApiEndpoint:
     Description: HTTPS endpoint for the Student Message Board API
