@@ -4835,6 +4835,65 @@ by CloudFormation, improving infrastructure reproducibility.
 The GET endpoint remains operational, while authenticated POST
 execution requires separate verification.
 
+### Iteration 29.8.4 — Removing Account-Specific IAM User Dependency
+
+**Objective:**
+Remove the dependency on a manually created IAM user from the
+three-tier CloudFormation template to improve cross-account
+infrastructure reproducibility.
+
+**Reference Implementation:**
+I used the official AWS CloudFormation documentation for
+`AWS::IAM::Policy` to review how inline IAM policies are attached
+to users, groups and roles [[111]](#ref-111).
+
+I also referred to the API Gateway documentation for IAM
+authorization to ensure that removing the client policy would
+not disable authentication for the POST endpoint
+[[112]](#ref-112).
+
+**Implementation:**
+The original `three-tier.yaml` contained an IAM policy resource
+named `MessagePostClientPolicy`.
+
+This policy granted `execute-api:Invoke` permission for
+`POST /message` directly to the existing IAM user
+`atu-devops-lab`.
+
+Since this user was manually created in my AWS account,
+the CloudFormation template depended on an account-specific
+IAM identity.
+
+I removed the entire `MessagePostClientPolicy` resource
+from the template.
+The API Gateway route retained:
+
+`AuthorizationType: AWS_IAM`
+
+Therefore, authenticated POST requests still require an IAM
+principal with the appropriate `execute-api:Invoke` permission
+[[112]](#ref-112).
+
+**Testing and Validation:**
+
+- [x] Removed the account-specific `MessagePostClientPolicy`.
+- [x] Preserved `AWS_IAM` authorization for `POST /message`.
+- [x] CloudFormation lint validation passed.
+- [x] `git diff --check` passed.
+- [x] CloudFormation Change Set created successfully.
+- [x] Change Set contained only one resource removal.
+- [x] No Lambda, DynamoDB or API Gateway replacement was required.
+- [x] CloudFormation stack reached `UPDATE_COMPLETE`.
+- [x] GET `/message` verified after IAM policy removal.
+- [ ] Authenticated POST `/message` verified after IAM policy removal.
+
+**Conclusion:**
+The three-tier CloudFormation template no longer requires
+the account-specific IAM user `atu-devops-lab`.
+The POST endpoint remains protected by AWS IAM authorization.
+Permission to invoke POST requests must be granted separately
+to the IAM principal used by an API client.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -5416,4 +5475,14 @@ at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-r
 **[110]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Route*.
 Available
 at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-route.html
+(Accessed: 28 October 2026).
+
+<a id="ref-111"></a>
+**[111]** Amazon Web Services (n.d.) *AWS::IAM::Policy*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-iam-policy.html
+(Accessed: 28 October 2026).
+
+<a id="ref-112"></a>
+**[112]** Amazon Web Services (n.d.) *Control access to HTTP APIs with IAM authorization*.
+Available at: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-access-control-iam.html
 (Accessed: 28 October 2026).
