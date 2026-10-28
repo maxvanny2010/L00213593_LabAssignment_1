@@ -4377,6 +4377,119 @@ Docker image publication will be configured in the next iteration.
 - Infrastructure permissions should be tested through actual
   CloudFormation deployments, not only template validation.
 
+### Iteration 29.7.4 — Automated Docker Image Publication to Amazon ECR Public
+
+**Objective:**
+
+Extend the existing GitHub Actions CI pipeline to publish the
+containerised Java application to Amazon ECR Public.
+
+The public Docker image will allow the application to be deployed
+in another AWS account without requiring access to my private
+Amazon ECR repository.
+
+**Reference Implementation:**
+
+I used the official AWS tutorial *Pushing an image to a public
+repository in Amazon ECR Public* as the primary reference
+[[101]](#ref-101).
+
+The tutorial explains Docker authentication, image tagging
+and publication to Amazon ECR Public.
+
+I also referred to the official ECR Public authentication
+documentation [[102]](#ref-102).
+
+GitHub Actions documentation was used to configure reusable
+workflow environment variables and the Git commit SHA
+[[105]](#ref-105).
+
+**Implementation:**
+
+Updated `.github/workflows/docker-deploy.yml`.
+
+The existing workflow builds the Java application using Maven
+and creates a Docker image using Docker Buildx.
+
+I extended the workflow with two additional steps:
+
+1. `Login to Amazon ECR Public` — authenticates Docker using
+   temporary AWS credentials obtained through GitHub OIDC.
+
+2. `Tag and push Docker image to ECR Public` — tags the
+   previously built Docker image and publishes it to
+   the public repository.
+
+The public repository URI is:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app`
+
+**My Modifications:**
+
+- Reused the existing GitHub Actions workflow.
+- Preserved the Maven verification and Docker build steps.
+- Preserved publication to the existing private Amazon ECR.
+- Added authentication to Amazon ECR Public.
+- Used the existing GitHub OIDC IAM role.
+- Configured public ECR authentication through `us-east-1`.
+- Added reusable environment variables for the image name,
+  registry and public registry alias.
+- Used the Git commit SHA as the Docker image tag.
+- Reused the previously built Docker image without rebuilding it.
+- Restricted image publication to pushes to the `master` branch.
+
+**Design Decision:**
+
+I decided to publish the same Docker image to both private
+and public Amazon ECR repositories during the transition.
+
+The private repository preserves the existing deployment
+workflow, while the public repository makes the application
+image accessible without additional AWS account permissions.
+
+The image is built once and then tagged and pushed to
+the two registries.
+
+I selected the Git commit SHA as the image tag to identify
+the source revision used to build each image.
+
+This supports traceability between Git history, GitHub Actions
+executions and published Docker images.
+
+The public registry authentication uses the AWS CLI command
+`ecr-public get-login-password` with the `us-east-1` Region,
+as documented by AWS [[102]](#ref-102).
+
+**Testing and Validation:**
+
+- [x] Existing GitHub Actions workflow inspected.
+- [x] Added Amazon ECR Public authentication step.
+- [x] Added Docker image tagging and publication step.
+- [x] Preserved the existing private ECR publication.
+- [x] Reused the existing GitHub OIDC authentication mechanism.
+- [x] Added reusable workflow environment variables.
+- [x] `git diff --check` passed.
+- [ ] Updated workflow executed successfully on `master`.
+- [ ] GitHub Actions authentication to ECR Public verified.
+- [ ] Docker image publication to ECR Public verified.
+- [ ] Public Docker image downloaded without authentication.
+- [ ] CloudFormation EC2 deployment tested using the public image.
+
+**Current Limitation:**
+
+The updated workflow has been configured locally but has not
+yet been executed with the new ECR Public publication steps.
+
+The public repository exists, but the Docker image publication
+and anonymous pull must be verified after the workflow
+is merged into `master`.
+
+**References:**
+
+- Amazon ECR Public image publication [[101]](#ref-101).
+- Amazon ECR Public authentication [[102]](#ref-102).
+- GitHub Actions environment variables [[105]](#ref-105).
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -4926,4 +5039,9 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/con
 <a id="ref-104"></a>
 **[104]** Amazon Web Services (n.d.) *View CloudFormation stack events*.
 Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html
+(Accessed: 28 October 2026).
+
+<a id="ref-105"></a>
+**[105]** GitHub (n.d.) *Store information in variables — GitHub Actions documentation*.
+Available at: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables
 (Accessed: 28 October 2026).

@@ -1,4 +1,4 @@
-name: Docker Build and ECR Publish
+name: Docker Build and ECR Public Publish
 
 on:
   push:
@@ -12,10 +12,17 @@ on:
 permissions:
   contents: read
 
+env:
+  IMAGE_NAME: atu-ec2-app
+  ECR_PUBLIC_REGISTRY: public.ecr.aws
+  ECR_PUBLIC_ALIAS: e1c9y1q6
+  AWS_REGION: us-east-1
+
 jobs:
   build-and-publish:
     name: Build, Verify and Publish
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       id-token: write
@@ -44,25 +51,31 @@ jobs:
           file: ./Dockerfile
           load: true
           push: false
-          tags: atu-ec2-app:${{ github.sha }}
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Configure AWS credentials
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::897068845214:role/ATU-GitHub-Actions-ECR
-          aws-region: eu-west-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Login to Amazon ECR Public
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        run: |
+          aws ecr-public get-login-password --region "$AWS_REGION" |
+            docker login \
+              --username AWS \
+              --password-stdin "$ECR_PUBLIC_REGISTRY"
 
-      - name: Tag and push Docker image to ECR
+      - name: Tag and push Docker image to ECR Public
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker tag "atu-ec2-app:${IMAGE_TAG}" "${ECR_REGISTRY}/atu-ec2-app:${IMAGE_TAG}"
-          docker push "${ECR_REGISTRY}/atu-ec2-app:${IMAGE_TAG}"
+          IMAGE_URI="${ECR_PUBLIC_REGISTRY}/${ECR_PUBLIC_ALIAS}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+          docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "${IMAGE_URI}"
+          docker push "${IMAGE_URI}"
+
+          echo "Published Docker image: ${IMAGE_URI}"
