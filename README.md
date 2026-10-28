@@ -4490,6 +4490,34 @@ is merged into `master`.
 - Amazon ECR Public authentication [[102]](#ref-102).
 - GitHub Actions environment variables [[105]](#ref-105).
 
+**Troubleshooting — CloudFormation Validation Region:**
+
+The GitHub Actions CI pipeline initially failed with the following error:
+
+`E3006: Resource type 'AWS::ECR::PublicRepository' does not exist in 'eu-west-1'.`
+
+The failure occurred because the CI pipeline attempted to validate
+the Amazon ECR Public CloudFormation template in `eu-west-1`.
+
+Amazon ECR Public resources are managed through the `us-east-1`
+AWS Region [[102]](#ref-102).
+
+**Solution:**
+
+I updated the CloudFormation validation workflow to validate:
+
+- Standard infrastructure templates in `eu-west-1`.
+- The Amazon ECR Public template separately in `us-east-1`.
+
+**Validation:**
+
+- [x] `cfn-lint --regions us-east-1 -t infrastructure/ec2/ecr-public.yaml` passed.
+- [x] `git diff --check` passed.
+- [x] Updated GitHub Actions CloudFormation validation passed.
+
+This ensures that regional resource availability is correctly
+considered during infrastructure validation.
+
 ## 6. References
 
 <a id="ref-1"></a>
