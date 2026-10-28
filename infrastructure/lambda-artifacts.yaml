@@ -42,3 +42,5 @@ Outputs:
   LambdaArtifactsBucketName:
     Description: S3 bucket for Lambda deployment artifacts
     Value: !Ref LambdaArtifactsBucket
+    Export:
+      Name: ATU-Lambda-ArtifactsBucketName

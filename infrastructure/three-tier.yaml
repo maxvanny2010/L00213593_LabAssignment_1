@@ -4,6 +4,12 @@ Description: >-
   ATU CloudFormation Lab - Part A(b).
   Three-tier architecture using API Gateway, Java Lambda and DynamoDB.
 
+Parameters:
+
+  LambdaArtifactVersion:
+    Type: String
+    Description: S3 object version ID of the uploaded Java Lambda JAR
+
 Resources:
 
   # Store messages submitted through the application
@@ -67,9 +73,10 @@ Resources:
       Role: !GetAtt MessageLambdaRole.Arn
 
       Code:
-        S3Bucket: atu-l00213593-lambda-897068845214-eu-west-1-an
+        S3Bucket:
+          Fn::ImportValue: ATU-Lambda-ArtifactsBucketName
         S3Key: lambda/student-message-board-1.0-SNAPSHOT.jar
-        S3ObjectVersion: DJt_ezLSSF0DXpOBLYbuGSuuf8c1bAIy
+        S3ObjectVersion: !Ref LambdaArtifactVersion
 
       MemorySize: 512
       Timeout: 15
