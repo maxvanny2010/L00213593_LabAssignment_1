@@ -172,7 +172,10 @@ Resources:
             Action:
               - ec2:StopInstances
               - ec2:StartInstances
-            Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/i-050f1033713bc9105
+            Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            Condition:
+              StringEquals:
+                aws:ResourceTag/Project: ATU-CloudFormation-Lab
 
           - Sid: DescribeSSMManagedInstances
             Effect: Allow
@@ -190,7 +193,10 @@ Resources:
             Effect: Allow
             Action:
               - ssm:SendCommand
-            Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/i-0a86cb75e6b6d65b4
+            Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            Condition:
+              StringEquals:
+                aws:ResourceTag/Project: ATU-CloudFormation-Lab
 
           - Sid: ReadSSMCommandResults
             Effect: Allow

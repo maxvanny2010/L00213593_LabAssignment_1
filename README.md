@@ -4023,7 +4023,9 @@ container startup and application verification.
 - [x] Public Amazon ECR image published and verified (Iteration 29.7.5).
 
 **Final Verification:**
-The original GHCR proposal was replaced with Amazon ECR Public. The public image was successfully published by GitHub Actions, downloaded without registry authentication, and used to bootstrap a newly provisioned EC2 instance. The automated UserData deployment was verified in Iteration 29.7.6 and repeated in Iteration 29.8.6.
+The original GHCR proposal was replaced with Amazon ECR Public. The public image was successfully published by GitHub
+Actions, downloaded without registry authentication, and used to bootstrap a newly provisioned EC2 instance. The
+automated UserData deployment was verified in Iteration 29.7.6 and repeated in Iteration 29.8.6.
 
 **Reference Implementation:**
 I used the official AWS CloudFormation tutorial *Deploy applications on Amazon EC2* as the primary
@@ -4123,7 +4125,8 @@ while the Java application EC2 instance remains in `eu-west-1`.
 - [x] Public ECR repository deployed and verified.
 
 **Final Status:**
-The IAM Bootstrap stack was deployed successfully, and the Amazon ECR Public repository was created and verified. GitHub Actions publication permissions were added and verified in Iterations 29.7.3–29.7.5.
+The IAM Bootstrap stack was deployed successfully, and the Amazon ECR Public repository was created and verified. GitHub
+Actions publication permissions were added and verified in Iterations 29.7.3–29.7.5.
 
 **References:**
 
@@ -4207,7 +4210,9 @@ while the EC2 application remains deployed in `eu-west-1`
 - [x] Docker image publication to ECR Public verified.
 
 **Final Status:**
-The updated IAM policy was deployed successfully. GitHub Actions authenticated using OIDC and published the application image to Amazon ECR Public. The published image and an unauthenticated Docker pull were verified in Iterations 29.7.4–29.7.5.
+The updated IAM policy was deployed successfully. GitHub Actions authenticated using OIDC and published the application
+image to Amazon ECR Public. The published image and an unauthenticated Docker pull were verified in Iterations
+29.7.4–29.7.5.
 
 **References:**
 
@@ -4466,7 +4471,9 @@ as documented by AWS [[102]](#ref-102).
 
 **Final Verification:**
 
-After Pull Request #29 was merged into `master`, GitHub Actions successfully published the image to Amazon ECR Public. The repository image tag and digest were verified, and an unauthenticated Docker pull succeeded (Iteration 29.7.5). The same public image was subsequently used in a successful fresh EC2 deployment (Iterations 29.7.6 and 29.8.6).
+After Pull Request #29 was merged into `master`, GitHub Actions successfully published the image to Amazon ECR Public.
+The repository image tag and digest were verified, and an unauthenticated Docker pull succeeded (Iteration 29.7.5). The
+same public image was subsequently used in a successful fresh EC2 deployment (Iterations 29.7.6 and 29.8.6).
 
 **References:**
 
@@ -4915,20 +4922,23 @@ CloudFormation parameter in the local template.
 The attempted update produced no resource changes because the
 resolved CORS value was unchanged.
 
-The parameterised template was subsequently deployed during Iteration 29.8.6, when the `ATU-Three-Tier` stack was updated to export the DynamoDB table name. A separate CORS test using a different CloudFront origin remains outstanding.
-
+The parameterised template was subsequently deployed during Iteration 29.8.6, when the `ATU-Three-Tier` stack was
+updated to export the DynamoDB table name. A separate CORS test using a different CloudFront origin remains outstanding.
 
 ### Iteration 29.8.6 — Removing Hardcoded DynamoDB Table Name from EC2
 
 **Objective:**
 
-Remove the hardcoded DynamoDB table name from the EC2 CloudFormation template and configure automatic retrieval of the table name through CloudFormation cross-stack references.
+Remove the hardcoded DynamoDB table name from the EC2 CloudFormation template and configure automatic retrieval of the
+table name through CloudFormation cross-stack references.
 
 **Reference Implementation:**
 
-I used the official AWS documentation *Get exported outputs from a deployed CloudFormation stack* to configure `Export` and `Fn::ImportValue` [[114]](#ref-114).
+I used the official AWS documentation *Get exported outputs from a deployed CloudFormation stack* to configure `Export`
+and `Fn::ImportValue` [[114]](#ref-114).
 
-I also consulted the AWS CloudFormation documentation for `Fn::Sub` to pass the imported table name into the EC2 UserData script [[115]](#ref-115).
+I also consulted the AWS CloudFormation documentation for `Fn::Sub` to pass the imported table name into the EC2
+UserData script [[115]](#ref-115).
 
 **Implementation:**
 
@@ -4944,7 +4954,8 @@ I added an `Export` to the `MessagesTableName` output in `infrastructure/three-t
 
 I removed the `DynamoTableName` parameter from `infrastructure/ec2/instance.yaml`.
 
-The EC2 UserData configuration now uses `Fn::Sub` with a variable mapping to retrieve the DynamoDB table name through `Fn::ImportValue`.
+The EC2 UserData configuration now uses `Fn::Sub` with a variable mapping to retrieve the DynamoDB table name through
+`Fn::ImportValue`.
 
 The imported value is passed to the Java application through the `TABLE_NAME` environment variable.
 
@@ -4962,7 +4973,8 @@ New EC2 instance:
 
 `i-0442df0132f2e9394`
 
-The new instance automatically installed Docker, downloaded the application image from Amazon ECR Public and started the Java application.
+The new instance automatically installed Docker, downloaded the application image from Amazon ECR Public and started the
+Java application.
 
 AWS Systems Manager Run Command was used to verify the deployment.
 
@@ -4983,13 +4995,16 @@ AWS Systems Manager Run Command was used to verify the deployment.
 - [x] AWS Systems Manager Run Command completed successfully.
 
 **Troubleshooting:**
-During template validation, `git diff --check` detected trailing whitespace in the modified UserData section.The whitespace was removed before deployment.
+During template validation, `git diff --check` detected trailing whitespace in the modified UserData section.The
+whitespace was removed before deployment.
 
 The initial CloudFormation Change Set reported conditional EC2 replacement because the `UserData` property had changed.
 
-Since the objective was to verify deployment on a clean instance, I deleted and recreated the existing EC2 stack rather than updating the running instance.
+Since the objective was to verify deployment on a clean instance, I deleted and recreated the existing EC2 stack rather
+than updating the running instance.
 
-During startup, the health verification loop initially received connection reset errors while the Java application was starting.
+During startup, the health verification loop initially received connection reset errors while the Java application was
+starting.
 
 The subsequent retry succeeded, and both application endpoints returned HTTP 200.
 
@@ -4997,8 +5012,133 @@ The subsequent retry succeeded, and both application endpoints returned HTTP 200
 The EC2 application no longer depends on a hardcoded DynamoDB table name.
 CloudFormation automatically retrieves the DynamoDB table name from the three-tier infrastructure stack.
 
-The successful deployment confirms that the Java application can be provisioned automatically using the exported DynamoDB table name.
-The deployment requires the exporting CloudFormation stack to exist in the same AWS account and Region before the EC2 stack is created.
+The successful deployment confirms that the Java application can be provisioned automatically using the exported
+DynamoDB table name.
+The deployment requires the exporting CloudFormation stack to exist in the same AWS account and Region before the EC2
+stack is created.
+
+### Iteration 29.8.7 — Removing Hardcoded EC2 Instance IDs from IAM Policies
+
+**Objective:**
+Remove hardcoded EC2 Instance IDs from the IAM Bootstrap CloudFormation template to improve cross-account
+reproducibility.
+
+Configure tag-based IAM permissions so that newly provisioned EC2 instances can be managed without updating the IAM
+policy after each deployment.
+
+**Reference Implementation:**
+I used the official AWS documentation *EC2: Start or stop instances based on tags* to configure resource-level
+permissions using the `aws:ResourceTag` condition key [[116]](#ref-116).
+
+I also consulted the AWS Systems Manager documentation *Setting up Run Command* to restrict command execution to tagged
+EC2 instances [[117]](#ref-117).
+
+**Implementation:**
+Updated `infrastructure/bootstrap/network-deployment-access.yaml`.
+The original IAM policy contained two hardcoded EC2 Instance IDs:
+
+- `i-050f1033713bc9105`
+- `i-0a86cb75e6b6d65b4`
+
+These identifiers referred to previous EC2 instances and became invalid after the infrastructure was recreated.
+
+I updated two IAM policy statements:
+
+1. `ControlApplicationInstanceState`
+2. `SendSSMCommandToApplicationInstance`
+
+Both statements now reference EC2 instances through a wildcard ARN:
+`arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*`
+Access is restricted using the following condition:
+`aws:ResourceTag/Project: ATU-CloudFormation-Lab`
+The first statement controls `ec2:StartInstances` and `ec2:StopInstances`.
+The second statement controls `ssm:SendCommand` for the project EC2 instances.
+The existing permissions for the AWS-managed `AWS-RunShellScript` document and SSM command result retrieval were
+preserved.
+
+**Design Decision:**
+I selected tag-based IAM permissions instead of referencing individual EC2 Instance IDs.
+CloudFormation generates a new Instance ID whenever an EC2 instance is recreated.
+
+Using the project tag allows IAM permissions to remain applicable across subsequent deployments without modifying the
+IAM policy.
+The permissions remain restricted to EC2 instances in the configured AWS account and Region that have the required
+project tag.
+
+**Deployment and Verification:**
+I validated the updated CloudFormation template and deployed it to the existing IAM Bootstrap stack.
+CloudFormation stack:
+
+`ATU-EC2-Bootstrap`
+
+Deployment result:
+
+`UPDATE_COMPLETE`
+
+I then authenticated using the dedicated IAM user profile `atu-lab` and executed an AWS Systems Manager Run Command on
+the newly provisioned EC2 instance.
+
+EC2 Instance ID:
+
+`i-0442df0132f2e9394`
+
+SSM Command ID:
+
+`030e2755-b3df-4b72-87e3-8d0fbb0a077f`
+
+The command executed:
+
+- `whoami`
+- `systemctl is-active docker`
+
+**Actual Result:**
+
+~~~text
+Status: Success
+
+Output:
+root
+active
+
+Errors: ""
+~~~
+
+This confirmed that the updated IAM permissions allowed the development IAM user to execute SSM commands on the new EC2
+instance.
+
+**Testing and Validation:**
+
+- [x] Removed the hardcoded EC2 Instance IDs.
+- [x] Configured wildcard EC2 resource ARNs.
+- [x] Added project tag conditions to the IAM policy statements.
+- [x] Preserved the existing SSM document permissions.
+- [x] Local `cfn-lint` validation passed.
+- [x] `git diff --check` passed.
+- [x] IAM Bootstrap stack updated successfully.
+- [x] CloudFormation stack reached `UPDATE_COMPLETE`.
+- [x] SSM Run Command submitted using the `atu-lab` profile.
+- [x] SSM command completed with `Success`.
+- [x] Docker service returned `active`.
+- [x] SSM command completed without errors.
+- [x] No EC2 replacement was required.
+
+**Limitations:**
+The IAM policy still depends on the existing developer IAM group, which will be reviewed separately as part of
+cross-account reproducibility.
+
+The successful SSM test confirms access to an instance with the required project tag. A negative test against an
+instance without the tag has not been performed.
+
+EC2 start and stop permissions were not independently tested during this iteration.
+
+**Conclusion:**
+The IAM Bootstrap configuration no longer depends on hardcoded EC2 Instance IDs.
+
+Tag-based permissions allow the development IAM user to manage newly provisioned project instances without updating the
+IAM policy after each EC2 replacement.
+
+The successful SSM test confirms that the updated permissions work with the current EC2 instance.
+This improves infrastructure reproducibility while preserving project-specific IAM access restrictions.
 
 ## 6. References
 
