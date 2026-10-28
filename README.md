@@ -4207,7 +4207,7 @@ while the EC2 application remains deployed in `eu-west-1`
 - [x] Preserved the private ECR publishing policy.
 - [x] Local `cfn-lint` validation passed without errors.
 - [x] `git diff --check` passed.
-- [ ] Updated IAM policy deployed through CloudFormation.
+- [x] Updated IAM policy deployed through CloudFormation.
 - [ ] GitHub Actions authentication to ECR Public verified.
 - [ ] Docker image publication to ECR Public verified.
 
@@ -4224,6 +4224,158 @@ Public image publication will be configured and tested in the next iteration.
 
 - Amazon ECR Public image publication documentation [[101]](#ref-101).
 - Amazon ECR Public registry authentication documentation [[102]](#ref-102).
+
+**Troubleshooting — Amazon ECR Public CloudFormation Deployment**
+
+**Problem:**
+
+The initial deployment of the `ATU-EC2-ECR-Public` CloudFormation stack
+failed because the development IAM user did not have all the permissions
+required to create and inspect CloudFormation Change Sets and the
+public ECR repository.
+
+**Reference Implementation:**
+
+I used the official AWS documentation *Control CloudFormation access
+with AWS Identity and Access Management* to review the permissions
+required for CloudFormation stack operations [[103]](#ref-103).
+
+I also consulted the AWS Service Authorization Reference for Amazon
+ECR Public to identify the permissions required for managing
+repository resources and tags [[100]](#ref-100).
+
+For troubleshooting the failed deployment, I used the official
+CloudFormation documentation *View CloudFormation stack events*
+[[104]](#ref-104).
+
+**Investigation:**
+
+The first deployment attempt failed with an `AccessDenied` error
+for `cloudformation:CreateChangeSet`.
+
+I reviewed the IAM policy and found that Change Set permissions
+had been granted for Change Set resources but not all required
+permissions had been granted on the CloudFormation stack ARN.
+
+AWS documents the use of IAM policies to control CloudFormation
+actions and access to specific resources [[103]](#ref-103).
+
+Further investigation identified missing permissions for:
+
+- `cloudformation:CreateChangeSet`
+- `cloudformation:ListChangeSets`
+- `cloudformation:DescribeChangeSet`
+- `cloudformation:ExecuteChangeSet`
+- `cloudformation:DeleteChangeSet`
+
+I extended the existing `ManagePublicECRStack` statement to allow
+these operations on the `ATU-EC2-ECR-Public` stack.
+
+The separate `ManagePublicECRChangeSets` statement was preserved.
+
+**Amazon ECR Public Tagging Error:**
+
+After correcting the CloudFormation permissions, I successfully
+created and executed a Change Set.
+
+The Change Set contained one resource:
+
+`AWS::ECR::PublicRepository`
+
+CloudFormation initially reported `CREATE_COMPLETE` for
+`PublicApplicationRepository`.
+
+However, the stack subsequently entered `ROLLBACK_IN_PROGRESS`
+because the development IAM user lacked:
+
+`ecr-public:ListTagsForResource`
+
+AWS identifies this operation as the permission required to
+retrieve tags associated with an ECR Public resource
+[[100]](#ref-100).
+
+**Root Cause:**
+
+The initial IAM policy allowed repository creation and tagging
+but did not include permission to retrieve resource tags.
+
+CloudFormation required this additional read operation while
+processing the repository resource.
+
+The missing permission caused the deployment to fail even though
+the repository had initially been created successfully.
+
+**Solution:**
+
+I updated `PublicECRDeploymentPolicy` in:
+
+`infrastructure/bootstrap/network-deployment-access.yaml`
+
+The following permission was added to the
+`ManagePublicECRRepository` statement:
+
+`ecr-public:ListTagsForResource`
+
+I then validated the updated CloudFormation template using
+`cfn-lint` and redeployed the `ATU-EC2-Bootstrap` stack.
+
+The IAM Bootstrap stack successfully reached `UPDATE_COMPLETE`.
+
+**CloudFormation Recovery:**
+
+I inspected the CloudFormation stack events to identify the
+failure reason.
+
+AWS documents the use of stack events and the
+`ResourceStatusReason` field for investigating failed
+resource operations [[104]](#ref-104).
+
+The failed stack reached `ROLLBACK_COMPLETE`.
+
+According to AWS documentation, a stack in this state cannot
+be updated and must be deleted before it can be recreated
+[[104]](#ref-104).
+
+I deleted the failed `ATU-EC2-ECR-Public` stack and repeated
+the deployment after correcting the IAM permissions.
+
+**Deployment Result:**
+
+The Amazon ECR Public repository was successfully created.
+
+Repository name:
+
+`atu-ec2-app`
+
+Repository URI:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app`
+
+The repository is intended to provide a publicly accessible
+Docker image for reproducible EC2 application deployment.
+
+Docker image publication will be configured in the next iteration.
+
+**Lessons Learned:**
+
+- IAM permissions for CloudFormation must cover the required
+  stack operations and Change Set operations [[103]](#ref-103).
+
+- CloudFormation may require additional AWS service permissions
+  beyond the initial resource creation operation [[103]](#ref-103).
+
+- Amazon ECR Public provides separate IAM actions for creating,
+  tagging and reading repository tags [[100]](#ref-100).
+
+- CloudFormation stack events and status reasons are important
+  for diagnosing deployment failures [[104]](#ref-104).
+
+- A successful resource creation event does not necessarily
+  mean that the complete CloudFormation stack deployment
+  will succeed.
+
+- Infrastructure permissions should be tested through actual
+  CloudFormation deployments, not only template validation.
 
 ## 6. References
 
@@ -4750,7 +4902,8 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateRefer
 (Accessed: 28 October 2026).
 
 <a id="ref-100"></a>
-**[100]** Amazon Web Services (n.d.) *Actions, resources, and condition keys for Amazon Elastic Container Registry Public*.
+**[100]** Amazon Web Services (n.d.) *Actions, resources, and condition keys for Amazon Elastic Container Registry
+Public*.
 Available at: https://docs.aws.amazon.com/service-authorization/latest/reference/list_ecr-public.html
 (Accessed: 28 October 2026).
 
@@ -4762,4 +4915,15 @@ Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/docker-push-ec
 <a id="ref-102"></a>
 **[102]** Amazon Web Services (n.d.) *Registry authentication in Amazon ECR Public*.
 Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/public-registry-auth.html
+(Accessed: 28 October 2026).
+
+<a id="ref-103"></a>
+
+**[103]** Amazon Web Services (n.d.) *Control CloudFormation access with AWS Identity and Access Management*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/control-access-with-iam.html
+(Accessed: 28 October 2026).
+
+<a id="ref-104"></a>
+**[104]** Amazon Web Services (n.d.) *View CloudFormation stack events*.
+Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html
 (Accessed: 28 October 2026).

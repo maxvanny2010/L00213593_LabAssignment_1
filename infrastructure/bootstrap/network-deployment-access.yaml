@@ -299,6 +299,11 @@ Resources:
               - cloudformation:ListStackResources
               - cloudformation:GetTemplate
               - cloudformation:GetTemplateSummary
+              - cloudformation:CreateChangeSet
+              - cloudformation:ListChangeSets
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:DeleteChangeSet
             Resource: !Sub arn:${AWS::Partition}:cloudformation:us-east-1:${AWS::AccountId}:stack/ATU-EC2-ECR-Public/*
 
           - Sid: ManagePublicECRChangeSets
@@ -320,6 +325,7 @@ Resources:
               - ecr-public:PutRepositoryCatalogData
               - ecr-public:TagResource
               - ecr-public:UntagResource
+              - ecr-public:ListTagsForResource
             Resource: !Sub arn:${AWS::Partition}:ecr-public::${AWS::AccountId}:repository/atu-ec2-app
 
 Outputs:
