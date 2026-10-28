@@ -105,15 +105,23 @@ Resources:
           - content-type
         MaxAge: 300
 
+  # Lambda integration for POST /message
+  MessagePostIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref MessageHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt MessageLambdaFunction.Arn
+      PayloadFormatVersion: '2.0'
 
-  # Reuse the Quick Create Lambda integration for POST requests
+  # Route POST /message through the CloudFormation-managed Lambda integration
   MessagePostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref MessageHttpApi
       RouteKey: 'POST /message'
       AuthorizationType: AWS_IAM
-      Target: 'integrations/zv9cjno'
+      Target: !Sub 'integrations/${MessagePostIntegration}'
 
   # Allow the HTTP API to invoke the Java Lambda function
   MessageApiLambdaPermission:

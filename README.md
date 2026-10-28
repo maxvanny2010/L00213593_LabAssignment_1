@@ -4778,6 +4778,63 @@ The deployment still depends on the supporting CloudFormation
 infrastructure, including the network, IAM Instance Profile and
 DynamoDB table.
 
+### Iteration 29.8.3 — Removing Hardcoded API Gateway Integration ID
+
+**Objective:**
+Remove the account-specific API Gateway Integration ID from the
+CloudFormation template to improve cross-account reproducibility.
+
+**Reference Implementation:**
+I used the official AWS CloudFormation documentation for
+`AWS::ApiGatewayV2::Integration` and `AWS::ApiGatewayV2::Route`
+to replace the hardcoded Integration ID with a CloudFormation-managed
+resource [[109]](#ref-109) [[110]](#ref-110).
+
+**Implementation:**
+The original `POST /message` route referenced a fixed API Gateway
+Integration ID:
+
+`integrations/zv9cjno`
+
+This identifier was created in my AWS account and would not be
+valid in another AWS account.
+
+I added an `AWS::ApiGatewayV2::Integration` resource named
+`MessagePostIntegration`.
+
+The `MessagePostRoute` resource now uses:
+
+`Target: !Sub 'integrations/${MessagePostIntegration}'`
+
+CloudFormation automatically resolves the integration identifier
+using the reference to the new resource [[109]](#ref-109).
+
+**Testing and Validation:**
+
+- [x] Removed the hardcoded API Gateway Integration ID.
+- [x] Added the CloudFormation-managed `MessagePostIntegration`.
+- [x] Updated `MessagePostRoute` to reference the new Integration.
+- [x] CloudFormation lint validation passed.
+- [x] `git diff --check` passed.
+- [x] CloudFormation Change Set created successfully.
+- [x] Change Set contained only the expected resource changes.
+- [x] Existing API Gateway route updated without replacement.
+- [x] CloudFormation stack reached `UPDATE_COMPLETE`.
+- [x] `GET /message` continued to return DynamoDB data.
+- [x] `POST /message` confirmed to use the new Integration.
+- [x] `POST /message` retained `AWS_IAM` authorization.
+- [ ] Authenticated `POST /message` request verified.
+
+**Conclusion:**
+The account-specific API Gateway Integration ID was removed
+from the CloudFormation template.
+
+The POST route now references an Integration created and managed
+by CloudFormation, improving infrastructure reproducibility.
+
+The GET endpoint remains operational, while authenticated POST
+execution requires separate verification.
+
 ## 6. References
 
 <a id="ref-1"></a>
@@ -5347,4 +5404,16 @@ Available at: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html
 <a id="ref-108"></a>
 **[108]** Amazon Web Services (n.d.) *GetCommandInvocation — AWS Systems Manager API Reference*.
 Available at: https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_GetCommandInvocation.html
+(Accessed: 28 October 2026).
+
+<a id="ref-109"></a>
+**[109]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Integration*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-integration.html
+(Accessed: 28 October 2026).
+
+<a id="ref-110"></a>
+**[110]** Amazon Web Services (n.d.) *AWS::ApiGatewayV2::Route*.
+Available
+at: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-apigatewayv2-route.html
 (Accessed: 28 October 2026).
