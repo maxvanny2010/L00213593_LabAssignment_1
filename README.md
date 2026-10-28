@@ -4208,8 +4208,8 @@ while the EC2 application remains deployed in `eu-west-1`
 - [x] Local `cfn-lint` validation passed without errors.
 - [x] `git diff --check` passed.
 - [x] Updated IAM policy deployed through CloudFormation.
-- [ ] GitHub Actions authentication to ECR Public verified.
-- [ ] Docker image publication to ECR Public verified.
+- [x] GitHub Actions authentication to ECR Public verified.
+- [x] Docker image publication to ECR Public verified.
 
 **Current Limitation:**
 The updated IAM policy has been defined and validated locally but has not
@@ -4469,10 +4469,10 @@ as documented by AWS [[102]](#ref-102).
 - [x] Reused the existing GitHub OIDC authentication mechanism.
 - [x] Added reusable workflow environment variables.
 - [x] `git diff --check` passed.
-- [ ] Updated workflow executed successfully on `master`.
-- [ ] GitHub Actions authentication to ECR Public verified.
-- [ ] Docker image publication to ECR Public verified.
-- [ ] Public Docker image downloaded without authentication.
+- [x] Updated workflow executed successfully on `master`.
+- [x] GitHub Actions authentication to ECR Public verified.
+- [x] Docker image publication to ECR Public verified.
+- [x] Public Docker image downloaded without authentication.
 - [ ] CloudFormation EC2 deployment tested using the public image.
 
 **Current Limitation:**
@@ -4517,6 +4517,118 @@ I updated the CloudFormation validation workflow to validate:
 
 This ensures that regional resource availability is correctly
 considered during infrastructure validation.
+
+### Iteration 29.7.5 — Verification of Amazon ECR Public Image Publication
+
+**Objective:**
+
+Verify that GitHub Actions successfully publishes the Java application
+Docker image to Amazon ECR Public and that the image can be downloaded
+without AWS authentication.
+
+**Reference Implementation:**
+
+I used the official AWS documentation *Pulling an image from the
+Amazon ECR Public Gallery* to verify unauthenticated Docker image
+downloads [[106]](#ref-106).
+
+I also consulted the AWS Service Authorization Reference for Amazon
+ECR Public to identify the IAM permission required to inspect
+published Docker images [[100]](#ref-100).
+
+**Implementation:**
+
+After merging Pull Request #29 into `master`, the GitHub Actions
+workflow published the application Docker image to Amazon ECR Public.
+
+Repository:
+
+`public.ecr.aws/e1c9y1q6/atu-ec2-app`
+
+Git commit SHA:
+
+`fc4b4b71c4c1a131b6be47e4e48534ad37f7e921`
+
+Image digest:
+
+`sha256:048835a709824114f3c6380a30f7d8f9b78d636d45bd173b0746db67ab0d5730`
+
+**Troubleshooting — Missing IAM Permission:**
+
+The initial image verification attempt failed with:
+
+`AccessDeniedException: ecr-public:DescribeImages`
+
+The development IAM user did not have permission to retrieve
+metadata about images stored in the public repository.
+
+According to the AWS Service Authorization Reference,
+`ecr-public:DescribeImages` grants permission to retrieve
+image metadata, including tags and image digests [[100]](#ref-100).
+
+I added this permission to the existing
+`ManagePublicECRRepository` statement in:
+
+`infrastructure/bootstrap/network-deployment-access.yaml`
+
+After validating the template using `cfn-lint`, I redeployed
+the `ATU-EC2-Bootstrap` CloudFormation stack.
+
+The deployment completed successfully.
+
+**Image Verification:**
+
+I used the AWS CLI command `ecr-public describe-images` to
+retrieve the image tag and digest.
+
+The command returned the Git commit SHA tag and image digest,
+confirming that the image was present in the public repository.
+
+**Unauthenticated Docker Pull:**
+
+To verify public accessibility, I removed the Docker registry
+credentials using:
+
+`docker logout public.ecr.aws`
+
+I then downloaded the published image using:
+
+`docker pull public.ecr.aws/e1c9y1q6/atu-ec2-app:fc4b4b71c4c1a131b6be47e4e48534ad37f7e921`
+
+Docker successfully downloaded all image layers.
+
+The downloaded image digest matched the digest reported by
+Amazon ECR Public.
+
+AWS documents that public images can be downloaded without
+authentication and recommends `docker logout public.ecr.aws`
+when verifying unauthenticated pulls [[106]](#ref-106).
+
+**Testing and Validation:**
+
+- [x] Pull Request #29 merged into `master`.
+- [x] GitHub Actions published the Docker image to ECR Public.
+- [x] Added the missing `ecr-public:DescribeImages` IAM permission.
+- [x] CloudFormation template validation passed.
+- [x] IAM Bootstrap stack updated successfully.
+- [x] Published image SHA tag verified.
+- [x] Published image digest verified.
+- [x] Docker registry credentials removed.
+- [x] Docker image downloaded without authentication.
+- [x] Downloaded image digest matched the published digest.
+- [ ] Automated deployment on a newly provisioned EC2 instance verified.
+
+**Conclusion:**
+
+Amazon ECR Public image publication and unauthenticated image
+retrieval were successfully verified.
+
+The published Docker image can be retrieved without granting
+the consuming AWS account access to the original private ECR.
+
+The next stage is to configure the EC2 CloudFormation template
+to use the verified public image and test automated application
+deployment through EC2 UserData.
 
 ## 6. References
 
@@ -5072,4 +5184,9 @@ Available at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/vie
 <a id="ref-105"></a>
 **[105]** GitHub (n.d.) *Store information in variables — GitHub Actions documentation*.
 Available at: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables
+(Accessed: 28 October 2026).
+<a id="ref-106"></a>
+
+**[106]** Amazon Web Services (n.d.) *Pulling an image from the Amazon ECR Public Gallery*.
+Available at: https://docs.aws.amazon.com/AmazonECR/latest/public/docker-pull-ecr-image.html
 (Accessed: 28 October 2026).
