@@ -1,0 +1,2 @@
+# Preserve Unix line endings for Bash scripts
+*.sh text eol=lf
