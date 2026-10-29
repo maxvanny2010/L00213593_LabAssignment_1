@@ -12,7 +12,6 @@ Parameters:
 
   AllowedCorsOrigin:
     Type: String
-    Default: 'https://d2caxeghfi5itf.cloudfront.net'
     Description: Allowed CloudFront origin for API Gateway CORS
 
 Resources:
@@ -89,6 +88,15 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref MessagesTable
+
+  # Manage Lambda logs through CloudFormation for automatic cleanup
+  MessageLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${MessageLambdaFunction}'
+      RetentionInDays: 7
 
   # Create an HTTP API with Lambda integration using Quick Create
   MessageHttpApi:
