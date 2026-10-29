@@ -8,9 +8,26 @@ Parameters:
   DeveloperGroupName:
     Type: String
     Default: ATU-DevOps-Lab-Developers
-    Description: Existing IAM developer group
+    Description: IAM developer group name
+
+  UseExistingDeveloperGroup:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether to reuse an existing IAM group
+
+Conditions:
+  CreateDeveloperGroup: !Equals [ !Ref UseExistingDeveloperGroup, 'false' ]
 
 Resources:
+
+  DeveloperGroup:
+    Type: AWS::IAM::Group
+    Condition: CreateDeveloperGroup
+    Properties:
+      GroupName: !Ref DeveloperGroupName
 
   NetworkDeploymentPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -19,7 +36,10 @@ Resources:
         Permissions for the ATU EC2 network CloudFormation stack.
 
       Groups:
-        - !Ref DeveloperGroupName
+        - !If
+          - CreateDeveloperGroup
+          - !Ref DeveloperGroup
+          - !Ref DeveloperGroupName
 
       PolicyDocument:
         Version: '2012-10-17'
@@ -172,7 +192,10 @@ Resources:
             Action:
               - ec2:StopInstances
               - ec2:StartInstances
-            Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/i-050f1033713bc9105
+            Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            Condition:
+              StringEquals:
+                aws:ResourceTag/Project: ATU-CloudFormation-Lab
 
           - Sid: DescribeSSMManagedInstances
             Effect: Allow
@@ -190,7 +213,10 @@ Resources:
             Effect: Allow
             Action:
               - ssm:SendCommand
-            Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/i-0a86cb75e6b6d65b4
+            Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            Condition:
+              StringEquals:
+                aws:ResourceTag/Project: ATU-CloudFormation-Lab
 
           - Sid: ReadSSMCommandResults
             Effect: Allow
@@ -227,7 +253,10 @@ Resources:
         Permissions to deploy GitHub Actions OIDC infrastructure.
 
       Groups:
-        - !Ref DeveloperGroupName
+        - !If
+          - CreateDeveloperGroup
+          - !Ref DeveloperGroup
+          - !Ref DeveloperGroupName
 
       PolicyDocument:
         Version: '2012-10-17'
@@ -281,7 +310,10 @@ Resources:
         repository using AWS CloudFormation.
 
       Groups:
-        - !Ref DeveloperGroupName
+        - !If
+          - CreateDeveloperGroup
+          - !Ref DeveloperGroup
+          - !Ref DeveloperGroupName
 
       PolicyDocument:
         Version: '2012-10-17'

@@ -4,6 +4,17 @@ Description: >-
   ATU CloudFormation Lab - Part A(b).
   Three-tier architecture using API Gateway, Java Lambda and DynamoDB.
 
+Parameters:
+
+  LambdaArtifactVersion:
+    Type: String
+    Description: S3 object version ID of the uploaded Java Lambda JAR
+
+  AllowedCorsOrigin:
+    Type: String
+    Default: 'https://d2caxeghfi5itf.cloudfront.net'
+    Description: Allowed CloudFront origin for API Gateway CORS
+
 Resources:
 
   # Store messages submitted through the application
@@ -67,9 +78,10 @@ Resources:
       Role: !GetAtt MessageLambdaRole.Arn
 
       Code:
-        S3Bucket: atu-l00213593-lambda-897068845214-eu-west-1-an
+        S3Bucket:
+          Fn::ImportValue: ATU-Lambda-ArtifactsBucketName
         S3Key: lambda/student-message-board-1.0-SNAPSHOT.jar
-        S3ObjectVersion: DJt_ezLSSF0DXpOBLYbuGSuuf8c1bAIy
+        S3ObjectVersion: !Ref LambdaArtifactVersion
 
       MemorySize: 512
       Timeout: 15
@@ -91,22 +103,30 @@ Resources:
         - LambdaArn: !GetAtt MessageLambdaFunction.Arn
       CorsConfiguration:
         AllowOrigins:
-          - 'https://d2caxeghfi5itf.cloudfront.net'
+          - !Ref AllowedCorsOrigin
         AllowMethods:
           - GET
         AllowHeaders:
           - content-type
         MaxAge: 300
 
+  # Lambda integration for POST /message
+  MessagePostIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref MessageHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt MessageLambdaFunction.Arn
+      PayloadFormatVersion: '2.0'
 
-  # Reuse the Quick Create Lambda integration for POST requests
+  # Route POST /message through the CloudFormation-managed Lambda integration
   MessagePostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref MessageHttpApi
       RouteKey: 'POST /message'
       AuthorizationType: AWS_IAM
-      Target: 'integrations/zv9cjno'
+      Target: !Sub 'integrations/${MessagePostIntegration}'
 
   # Allow the HTTP API to invoke the Java Lambda function
   MessageApiLambdaPermission:
@@ -126,27 +146,13 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${MessageHttpApi}/*/POST/message'
 
-  # Allow the lab IAM user to invoke only POST /message
-  MessagePostClientPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ATU-MessagePost-Invoke
-      Users:
-        - atu-devops-lab
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: InvokeMessagePostOnly
-            Effect: Allow
-            Action:
-              - execute-api:Invoke
-            Resource: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${MessageHttpApi}/*/POST/message'
-
 Outputs:
 
   MessagesTableName:
     Description: Name of the DynamoDB messages table
     Value: !Ref MessagesTable
+    Export:
+      Name: ATU-Three-Tier-MessagesTableName
 
   MessageApiEndpoint:
     Description: HTTPS endpoint for the Student Message Board API

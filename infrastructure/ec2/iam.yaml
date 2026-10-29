@@ -4,12 +4,6 @@ Description: >
   ATU CloudFormation Lab - IAM role, managed policy
   and instance profile for the EC2 Java application.
 
-Parameters:
-  DynamoDbTableName:
-    Type: String
-    Default: ATU-Three-Tier-messages
-    Description: Existing DynamoDB messages table
-
 Resources:
 
   # The EC2 service can assume this role.
@@ -54,7 +48,11 @@ Resources:
             Action:
               - dynamodb:Scan
               - dynamodb:PutItem
-            Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDbTableName}
+            Resource:
+              Fn::Sub:
+                - 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}'
+                - TableName:
+                    Fn::ImportValue: ATU-Three-Tier-MessagesTableName
 
           - Sid: GetECRAuthorizationToken
             Effect: Allow

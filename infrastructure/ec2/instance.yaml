@@ -22,10 +22,6 @@ Parameters:
     Type: String
     Default: public.ecr.aws/e1c9y1q6/atu-ec2-app:fc4b4b71c4c1a131b6be47e4e48534ad37f7e921
     Description: Full Docker image URI including tag or digest
-  DynamoTableName:
-      Type: String
-      Default: ATU-Three-Tier-messages
-      Description: DynamoDB table used by the EC2 application
 
 Resources:
 
@@ -65,50 +61,54 @@ Resources:
 
       UserData:
         Fn::Base64:
-          Fn::Sub: |
-            #!/bin/bash
-            set -euxo pipefail
+          Fn::Sub:
+            - |
+              #!/bin/bash
+              set -euxo pipefail
 
-            # Start SSM Agent
-            systemctl enable --now amazon-ssm-agent
+              # Start SSM Agent
+              systemctl enable --now amazon-ssm-agent
 
-            # Install Docker
-            dnf install -y docker
-            systemctl enable --now docker
+              # Install Docker
+              dnf install -y docker
+              systemctl enable --now docker
 
-            # Download application image
-            docker pull "${DockerImageUri}"
+              # Download application image
+              docker pull "${DockerImageUri}"
 
-            # Start Java application
-            docker run -d \
-              --name atu-ec2-app \
-              --restart unless-stopped \
-              --user 10001:10001 \
-              --cap-drop ALL \
-              --security-opt no-new-privileges \
-              --read-only \
-              --tmpfs /tmp:rw,nosuid,nodev,size=32m \
-              --memory 256m \
-              --cpus 0.5 \
-              --pids-limit 128 \
-              -p 127.0.0.1:8080:8080 \
-              -e HOST=0.0.0.0 \
-              -e PORT=8080 \
-              -e AWS_REGION="${AWS::Region}" \
-              -e TABLE_NAME="${DynamoTableName}" \
-              "${DockerImageUri}"
+              # Start Java application
+              docker run -d \
+                --name atu-ec2-app \
+                --restart unless-stopped \
+                --user 10001:10001 \
+                --cap-drop ALL \
+                --security-opt no-new-privileges \
+                --read-only \
+                --tmpfs /tmp:rw,nosuid,nodev,size=32m \
+                --memory 256m \
+                --cpus 0.5 \
+                --pids-limit 128 \
+                -p 127.0.0.1:8080:8080 \
+                -e HOST=0.0.0.0 \
+                -e PORT=8080 \
+                -e AWS_REGION="${AWS::Region}" \
+                -e TABLE_NAME="${MessagesTableName}" \
+                "${DockerImageUri}"
 
-            # Verify application startup
-            for attempt in $(seq 1 30); do
-              if curl -fsS http://127.0.0.1:8080/health; then
-                break
-              fi
-              sleep 2
-            done
+              # Verify application startup
+              for attempt in $(seq 1 30); do
+                if curl -fsS http://127.0.0.1:8080/health; then
+                  break
+                fi
+                sleep 2
+              done
 
-            # Verify application and DynamoDB
-            curl -fsS http://127.0.0.1:8080/health
-            curl -fsS http://127.0.0.1:8080/message
+              # Verify application and DynamoDB
+              curl -fsS http://127.0.0.1:8080/health
+              curl -fsS http://127.0.0.1:8080/message
+
+            - MessagesTableName:
+                Fn::ImportValue: ATU-Three-Tier-MessagesTableName
 
       Tags:
         - Key: Name
