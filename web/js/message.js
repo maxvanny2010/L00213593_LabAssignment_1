@@ -1,5 +1,4 @@
-const API_URL = "https://5khdtsh8bb.execute-api.eu-west-1.amazonaws.com/message";
-
+const API_URL = window.APP_CONFIG.API_URL;
 const loadButton = document.getElementById("load-messages");
 const statusElement = document.getElementById("message-status");
 const messageList = document.getElementById("message-list");

@@ -55,7 +55,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub "atu-l00213593-oac-${AWS::AccountId}"
+        Name: !Sub "atu-l00213593-oac-${AWS::AccountId}-${AWS::Region}"
         Description: OAC for the ATU static website
         OriginAccessControlOriginType: s3
         SigningBehavior: always
