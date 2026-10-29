@@ -202,8 +202,8 @@ bash scripts/deploy.sh
 
 The script checks the AWS account, requests explicit confirmation, deploys the same CloudFormation stacks in dependency order, builds and uploads the Lambda artefact, generates the JavaScript configuration, publishes the site, and checks the services over HTTP and SSM.
 
-**Important:** The manual process and deployment script are designed for fresh deployments; neither should be used as an unreviewed update procedure for existing stacks. They have passed static checks, but a complete new-account deployment must still be tested.
+**Important:** The manual process and deployment script are designed for fresh deployments; neither should be used as an unreviewed update procedure for existing stacks. The automated deployment has been tested successfully in a second Region using a separate IAM user in the same AWS account; deployment in a wholly separate account remains untested.
 
 ## 10. Cleanup
 
-AWS resources may continue to incur charges after testing. Delete the stacks in **reverse dependency order**, taking care to empty S3 buckets first, including object versions and deletion markers where versioning is enabled. Do not delete shared or unrelated resources. A dedicated, reviewed cleanup procedure is preferable to ad hoc stack deletion; this document intentionally does not provide a destructive one-line cleanup command.
+AWS resources may continue to incur charges after testing. Delete the stacks in **reverse dependency order**, taking care to empty S3 buckets first, including object versions and deletion markers where versioning is enabled. Do not delete shared or unrelated resources. For automated cleanup, set `AWS_REGION` explicitly and run `bash scripts/destroy.sh` with an appropriately authorised non-root AWS CLI identity. Inspect the target account, Region and stack names and enter the displayed confirmation phrase. The script checks project stack ownership tags before deleting. It has been exercised successfully in `eu-west-2` in the project account; its updated cross-account safeguards have not yet been exercised in another account.

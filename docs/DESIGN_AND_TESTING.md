@@ -121,3 +121,32 @@ All seven CloudFormation stacks were deleted in reverse dependency order. Both S
 A subsequent CloudFormation check confirmed that no active `ATU-*` stacks or stacks with `DELETE_FAILED` status remained in the test Region.
 
 **Result:** Automated deployment, functional testing and infrastructure cleanup completed successfully.
+
+### 7.2 Final Automated Deployment and Cleanup Test — 29 October 2026
+
+A second complete deployment was performed in `eu-west-2` using the temporary IAM user `atu-test-deployer-2`.
+
+**Deployment command:**
+`bash scripts/deploy.sh --seed-demo`
+
+**Results:**
+- All seven CloudFormation stacks deployed successfully.
+- Java Lambda, API Gateway and DynamoDB integration passed.
+- The optional `--seed-demo` argument inserted a DynamoDB record.
+- The demonstration message was retrieved through the API and displayed on the CloudFront website.
+- EC2, Docker and the Java application passed readiness checks.
+- The deployment finished with `DEPLOYMENT SUCCESSFUL`.
+
+**Cleanup command:**
+`bash scripts/destroy.sh`
+
+**Results:**
+- The script identified the target AWS account and Region.
+- All seven CloudFormation stacks passed project ownership tag checks.
+- Account- and Region-specific confirmation was required.
+- Stacks were deleted in reverse dependency order.
+- Both S3 buckets were emptied, including object versions and delete markers.
+- The final script verification confirmed that all seven named stacks were absent.
+- The cleanup finished with `SUCCESS`.
+
+**Conclusion:** The complete automated deployment, demonstration data seeding, functional verification and infrastructure cleanup were successfully tested in a second AWS Region. Testing in a separate AWS account remains outstanding.

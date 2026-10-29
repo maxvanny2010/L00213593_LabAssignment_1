@@ -1,6 +1,6 @@
 # GitHub Pull Request History
 
-The links below provide an audit trail for the implementation documented in the development log. All PRs #1–#30 were reported as merged by GitHub CLI on 28 October 2026. **PR #31 is a planned link, not an existing or verified PR.** The repository may assign another number if a different PR is created first.
+The links below provide an audit trail for the implementation documented in the development log. All PRs #1–#30 were reported as merged by GitHub CLI on 28 October 2026. **PR #31 is open and contains the deployment, documentation and cleanup changes.**
 
 | PR | Change | Documented implementation |
 |---|---|---|
@@ -34,7 +34,7 @@ The links below provide an audit trail for the implementation documented in the 
 | [#28](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/28) | feat: configure EC2 ECR access and automate Docker installation | Iteration 29.6.1, Iteration 29.6.2, Iteration 29.6.3 |
 | [#29](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/29) | feat: automate EC2 provisioning and publish Docker images to ECR Public | Iteration 29.7.1, Iteration 29.7.2, Iteration 29.7.3, Iteration 29.7.4, Iteration 29.7.5 |
 | [#30](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/30) | feat: verify reproducible EC2 deployment using CloudFormation UserData | Iteration 29.7.1, Iteration 29.7.6 |
-| [#31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) | Cross-account reproducibility and deployment documentation (planned) | Iteration 29.8.3, Iteration 29.8.4, Iteration 29.8.5, Iteration 29.8.6, Iteration 29.8.7, Iteration 29.8.8 |
+| [#31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) | Cross-region deployment, Lambda/EC2 automation and cleanup (open) | Iteration 29.8.3, Iteration 29.8.4, Iteration 29.8.5, Iteration 29.8.6, Iteration 29.8.7, Iteration 29.8.8 |
 
 ## Review changes
 

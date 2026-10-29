@@ -62,7 +62,6 @@ deploy() {
 deploy infrastructure/static-website.yaml ATU-Static-Website
 WEBSITE_BUCKET="$(stack_output ATU-Static-Website WebsiteBucketName)"
 WEBSITE_URL="$(stack_output ATU-Static-Website WebsiteURL)"
-WEBSITE_DIST="$(stack_output ATU-Static-Website WebsiteDistributionId)"
 
 # 2. Build Java Lambda, upload immutable S3 object version.
 deploy infrastructure/lambda-artifacts.yaml ATU-Lambda-Artifacts
@@ -128,7 +127,7 @@ if (( SEED_DEMO )); then
 fi
 log 'Waiting for EC2 to register with SSM (up to 10 minutes)'
 ready=0
-for i in {1..40}; do
+for _ in {1..40}; do
   status="$(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
     --query 'InstanceInformationList[0].PingStatus' --output text || true)"
   if [[ "$status" == Online ]]; then ready=1; break; fi

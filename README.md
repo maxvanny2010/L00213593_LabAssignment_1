@@ -64,15 +64,13 @@ bash scripts/deploy.sh --seed-demo
 
 After deployment, open the CloudFront website and click **Load Messages**. The demonstration message is `CloudFormation deployment successful!`. The optional seed is written using the deploying IAM identity (`dynamodb:PutItem` required); the public POST endpoint remains IAM-protected. The seed option cannot be used on an already deployed stack because `deploy.sh` intentionally refuses existing project stacks.
 
-**Destroying the London test environment:** The provided `scripts/destroy.sh` is deliberately restricted to AWS account `897068845214` and Region `eu-west-2`. After confirming the AWS identity, run:
-
+**Cleanup (any AWS account and supported Region):** `scripts/destroy.sh` selects the target AWS account from the authenticated AWS CLI identity and requires an explicitly set `AWS_REGION`. It refuses root credentials and checks the expected project ownership tags on each stack before deleting. **Data loss is permanent** (including DynamoDB and both S3 buckets). Review the printed target account, Region and stack names before entering the dynamically generated confirmation phrase. For example:
 ```bash
-export AWS_PROFILE=atu-test
+export AWS_PROFILE=your-iam-profile
 export AWS_REGION=eu-west-2
 bash scripts/destroy.sh
 ```
-
-Type `DELETE-ATU-eu-west-2` only after checking the displayed account, Region and stack names. This irreversibly deletes the seven named lab stacks and data stored in their two S3 buckets and DynamoDB table. The Ireland (`eu-west-1`) deployment is not touched. For a different AWS account, review and adapt the safety guards before using the cleanup script. AWS charges may continue for other unrelated resources.
+The confirmation phrase is `DELETE-<account-id>-<region>`, using the actual target values printed by the script. Run cleanup only for a dedicated lab deployment; do not use it against shared resources. AWS charges may continue for unrelated resources.
 
 ## Project Files
 
@@ -88,7 +86,7 @@ lambda-app/                   Java Lambda implementation
 ec2-app/                      Java HTTP application
 web/                          Static website and JavaScript
 scripts/deploy.sh             Automated clean-region deployment (optional demo seed)
-scripts/destroy.sh            Guarded cleanup of eu-west-2 test stacks
+scripts/destroy.sh            Guarded cleanup of selected account/Region lab stacks
 docs/                         Detailed documentation and screenshots
 ```
 
