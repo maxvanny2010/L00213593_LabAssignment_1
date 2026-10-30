@@ -38,7 +38,8 @@ The first part of the assignment requires a static website, so a simple HTML pag
 This approach has fewer dependencies and does not require a build process.
 However, it provides fewer features than a modern frontend framework.
 
-AWS documentation confirms that Amazon S3 can store static website content, including HTML files [[3]](REFERENCES.md#ref-3).
+AWS documentation confirms that Amazon S3 can store static website content, including HTML
+files [[3]](REFERENCES.md#ref-3).
 
 **Testing:**
 
@@ -61,7 +62,7 @@ Create a CloudFormation template to provision an Amazon S3 bucket.
 - Enabled Block Public Access and `BucketOwnerEnforced` to disable ACL-based access management.
 - Configured SSE-S3 encryption (`AES256`), resource tags and CloudFormation outputs.
   SSE-S3 uses Amazon S3 managed keys [[7]](REFERENCES.md#ref-7).
-- Used a recognisable bucket prefix with an account-regional namespace.
+- Used a recognizable bucket prefix with an account-regional namespace.
 
 **Access Control Decision:**
 
@@ -73,7 +74,8 @@ will be configured later to serve the website publicly.
 `BlockPublicAcls` prevents new public ACLs, while `IgnorePublicAcls` ignores existing
 public ACL permissions. These overlap with disabled ACLs, but are retained as an
 additional safeguard if the ownership configuration changes. `BlockPublicPolicy` blocks new public bucket policies (not
-all bucket policies),and `RestrictPublicBuckets` limits access when a bucket policy is public [[5]](REFERENCES.md#ref-5).
+all bucket policies),and `RestrictPublicBuckets` limits access when a bucket policy is
+public [[5]](REFERENCES.md#ref-5).
 
 **Bucket Naming Decision:**
 
@@ -156,7 +158,8 @@ The policy initially allowed only one action:
 
 I attached this policy to the `ATU-DevOps-Lab-Developers` group.
 
-This follows the principle of least privilege, where permissions are granted only when required [[8]](REFERENCES.md#ref-8).
+This follows the principle of least privilege, where permissions are granted only when
+required [[8]](REFERENCES.md#ref-8).
 
 **4. Successful template validation**
 
@@ -279,8 +282,8 @@ was `atu-l00213593-web-897068845214-eu-west-1-an`.
 **Security and configuration checks:** I checked the deployed S3 configuration
 using AWS CLI commands documented in the official command reference:
 
-| CLI command                                               | What it verifies                         | Actual result                 |
-|-----------------------------------------------------------|------------------------------------------|-------------------------------|
+| CLI command                                                            | What it verifies                         | Actual result                 |
+|------------------------------------------------------------------------|------------------------------------------|-------------------------------|
 | `aws s3api get-public-access-block` [[13]](REFERENCES.md#ref-13)       | Four settings that prevent public access | All four set to `true`        |
 | `aws s3api get-bucket-encryption` [[14]](REFERENCES.md#ref-14)         | Default server-side encryption           | `AES256` (SSE-S3)             |
 | `aws s3api get-bucket-ownership-controls` [[15]](REFERENCES.md#ref-15) | Object ownership and ACL configuration   | `BucketOwnerEnforced`         |
@@ -344,7 +347,8 @@ Added `AWS::S3::BucketPolicy` to allow CloudFront to read objects from the priva
 I decided to keep the S3 bucket private and allow access only through the configured CloudFront distribution.
 The policy grants `s3:GetObject` permission to the CloudFront service. The `AWS:SourceArn` condition restricts access to
 the specific distribution created by this project.
-This follows the AWS recommendation for using Origin Access Control with a private S3 origin [[21]](REFERENCES.md#ref-21).
+This follows the AWS recommendation for using Origin Access Control with a private S3
+origin [[21]](REFERENCES.md#ref-21).
 
 **Validation**
 
@@ -831,7 +835,8 @@ Separation also makes artifact lifecycle management and lab cleanup easier.
   `atu-l00213593-lambda`. This allows AWS to generate an account/Region-scoped bucket name without hardcoding a complete
   name [[6]](REFERENCES.md#ref-6) [[39]](REFERENCES.md#ref-39).
 - Enabled S3 Versioning for previous deployment artifacts and configured a lifecycle rule to expire noncurrent object
-  versions after 30 days, using the same retention approach as the website bucket [[23]](REFERENCES.md#ref-23) [[24]](REFERENCES.md#ref-24).
+  versions after 30 days, using the same retention approach as the website
+  bucket [[23]](REFERENCES.md#ref-23) [[24]](REFERENCES.md#ref-24).
 - Added a CloudFormation output for the generated artifact bucket name.
 
 **Static-analysis finding: S3 server access logging**
@@ -1396,7 +1401,8 @@ the existing public endpoint continued to operate correctly.
 
 ### Iteration 15 — DynamoDB Integration
 
-**GitHub Pull Request(s):** [PR #10](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/10), [PR #11](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/11)
+**GitHub Pull Request(s):
+** [PR #10](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/10), [PR #11](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/11)
 
 #### Step 1 — Read DynamoDB from Java Lambda
 
@@ -1853,7 +1859,8 @@ Allow the existing HTTP API to invoke the Java Lambda function through the new `
 **Design Decision**
 I decided to define a separate Lambda invocation permission for POST instead of broadening the existing GET permission.
 This keeps the permissions explicit and allows each HTTP route to be reviewed independently.
-CloudFormation uses the generated API identifier in `SourceArn`, avoiding hardcoded API identifiers [[48]](REFERENCES.md#ref-48).
+CloudFormation uses the generated API identifier in `SourceArn`, avoiding hardcoded API
+identifiers [[48]](REFERENCES.md#ref-48).
 
 **Security Consideration**
 The POST route is configured without authentication and would allow public message creation after deployment.
@@ -1911,7 +1918,8 @@ API.
 
 - Validated `infrastructure/three-tier.yaml` with AWS CloudFormation.
 - Created a CloudFormation Change Set named `add-protected-post-message` for the `ATU-Three-Tier` stack.
-- Inspected the proposed resource changes before execution, following the AWS Change Set workflow [[54]](REFERENCES.md#ref-54).
+- Inspected the proposed resource changes before execution, following the AWS Change Set
+  workflow [[54]](REFERENCES.md#ref-54).
 - Confirmed that the Change Set added **two** resources: `MessagePostRoute` and `MessagePostLambdaPermission`, without
   replacing the existing API.
 - Executed the Change Set and confirmed the stack reached `UPDATE_COMPLETE`.
@@ -2006,7 +2014,8 @@ I sent an unauthenticated POST request.
 **Actual Result:** `HTTP 403 Forbidden`.
 
 I then sent an authenticated POST request using temporary credentials from the `atu-lab` profile and AWS Signature
-Version 4. The AWS CLI supports credential export for tools that need temporary credentials [[55]](REFERENCES.md#ref-55).
+Version 4. The AWS CLI supports credential export for tools that need temporary
+credentials [[55]](REFERENCES.md#ref-55).
 
 **Actual Result:**
 
