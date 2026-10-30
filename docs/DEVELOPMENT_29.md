@@ -131,7 +131,8 @@ through AWS Systems Manager.
 
 ### Iteration 29.4 — GitHub Actions OIDC Authentication
 
-**GitHub Pull Request(s):** [PR #26](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/26), [PR #27](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/27)
+**GitHub Pull Request(s):
+** [PR #26](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/26), [PR #27](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/27)
 
 **Objective:** Prepare secure authentication between GitHub Actions and AWS without storing permanent AWS credentials.
 
@@ -200,7 +201,8 @@ Actual role assumption from GitHub Actions has not yet been tested.
 
 ### Iteration 29.5 — Automated Docker Image Publication to Amazon ECR
 
-**GitHub Pull Request(s):** [PR #26](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/26), [PR #27](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/27)
+**GitHub Pull Request(s):
+** [PR #26](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/26), [PR #27](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/27)
 
 **Objective:** Build and verify the Java application and Docker image on one GitHub Actions runner,
 then publish the verified image to Amazon ECR only for pushes to `master`.
@@ -218,7 +220,8 @@ then publish the verified image to Amazon ECR only for pushes to `master`.
   to the Docker daemon on the same runner [[94]](REFERENCES.md#ref-94).
 - For pushes to `master` only, used `aws-actions/configure-aws-credentials@v4` to assume the existing
   `ATU-GitHub-Actions-ECR` IAM Role using GitHub OIDC. The job requests `id-token: write` to obtain an OIDC token; the
-  role's trust policy independently restricts the permitted repository and branch [[91]](REFERENCES.md#ref-91) [[92]](REFERENCES.md#ref-92).
+  role's trust policy independently restricts the permitted repository and
+  branch [[91]](REFERENCES.md#ref-91) [[92]](REFERENCES.md#ref-92).
 - Used `aws-actions/amazon-ecr-login@v2` to authenticate Docker to Amazon ECR [[93]](REFERENCES.md#ref-93).
 - Used `docker tag` and `docker push` to publish the **already built local image** to
   `897068845214.dkr.ecr.eu-west-1.amazonaws.com/atu-ec2-app`, using the Git commit SHA as its tag.
@@ -427,7 +430,8 @@ can configure its container runtime during initialisation.
 Updated `infrastructure/ec2/instance.yaml` with `UserData` that enables the SSM Agent, installs Docker using `dnf`,
 enables and starts the Docker service, and verifies the service with `systemctl` and `docker info`. The configuration
 uses `Fn::Base64` and does not require `Fn::Sub`, because no CloudFormation variables are substituted inside the
-script [[96]](REFERENCES.md#ref-96) [[97]](REFERENCES.md#ref-97). Amazon Linux 2023 uses `dnf` for package management [[88]](REFERENCES.md#ref-88).
+script [[96]](REFERENCES.md#ref-96) [[97]](REFERENCES.md#ref-97). Amazon Linux 2023 uses `dnf` for package
+management [[88]](REFERENCES.md#ref-88).
 
 **Verification and scope:**
 
@@ -499,7 +503,8 @@ optional future enhancements.
 
 ### Iteration 29.7.1 — Simplified EC2 Application Bootstrap Using CloudFormation
 
-**GitHub Pull Request(s):** [PR #29](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/29), [PR #30](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/30)
+**GitHub Pull Request(s):
+** [PR #29](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/29), [PR #30](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/30)
 
 **Objective:**
 Simplify the EC2 UserData script while retaining automated Docker installation,
@@ -532,8 +537,10 @@ reference [[98]](REFERENCES.md#ref-98).
 The tutorial demonstrates how CloudFormation can configure application software on an EC2 instance during provisioning.
 I adapted this approach to install Docker, download a container image and start my Java application using EC2 UserData.
 
-The implementation also follows the official AWS documentation for EC2 UserData [[96]](REFERENCES.md#ref-96), CloudFormation
-`Fn::Sub` [[30]](REFERENCES.md#ref-30), EC2 instance configuration [[97]](REFERENCES.md#ref-97), and Amazon Linux 2023 package
+The implementation also follows the official AWS documentation for EC2 UserData [[96]](REFERENCES.md#ref-96),
+CloudFormation
+`Fn::Sub` [[30]](REFERENCES.md#ref-30), EC2 instance configuration [[97]](REFERENCES.md#ref-97), and Amazon Linux 2023
+package
 management [[88]](REFERENCES.md#ref-88).
 
 **Design Decision:**
@@ -1279,7 +1286,8 @@ DynamoDB table.
 
 ### Iteration 29.8.3 — Removing Hardcoded API Gateway Integration ID
 
-**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link becomes active when PR #31 is created)*
+**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link
+becomes active when PR #31 is created)*
 
 **Objective:**
 Remove the account-specific API Gateway Integration ID from the
@@ -1338,7 +1346,8 @@ execution requires separate verification.
 
 ### Iteration 29.8.4 — Removing Account-Specific IAM User Dependency
 
-**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link becomes active when PR #31 is created)*
+**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link
+becomes active when PR #31 is created)*
 
 **Objective:**
 Remove the dependency on a manually created IAM user from the
@@ -1399,7 +1408,8 @@ to the IAM principal used by an API client.
 
 ### Iteration 29.8.5 — Parameterising API Gateway CORS Origin
 
-**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link becomes active when PR #31 is created)*
+**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link
+becomes active when PR #31 is created)*
 
 **Objective:**
 Remove the hardcoded CloudFront domain from the API Gateway CORS
@@ -1441,7 +1451,8 @@ updated to export the DynamoDB table name. A separate CORS test using a differen
 
 ### Iteration 29.8.6 — Removing Hardcoded DynamoDB Table Name from EC2
 
-**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link becomes active when PR #31 is created)*
+**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link
+becomes active when PR #31 is created)*
 
 **Objective:**
 
@@ -1535,7 +1546,8 @@ stack is created.
 
 ### Iteration 29.8.7 — Removing Hardcoded EC2 Instance IDs from IAM Policies
 
-**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link becomes active when PR #31 is created)*
+**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link
+becomes active when PR #31 is created)*
 
 **Objective:**
 Remove hardcoded EC2 Instance IDs from the IAM Bootstrap CloudFormation template to improve cross-account
@@ -1660,7 +1672,8 @@ This improves infrastructure reproducibility while preserving project-specific I
 
 ### Iteration 29.8.8 — Removing Dependency on an Existing IAM Group
 
-**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link becomes active when PR #31 is created)*
+**GitHub Pull Request(s):** [PR #31](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/31) *(planned; link
+becomes active when PR #31 is created)*
 
 **Objective:**
 

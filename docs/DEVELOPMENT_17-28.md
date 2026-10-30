@@ -279,7 +279,8 @@ I used the official GitHub `actions/setup-python` workflow example as a starting
 I adapted its structure to install and execute AWS CloudFormation Linter, following the official AWS
 documentation [[60]](REFERENCES.md#ref-60).
 
-GitHub's workflow syntax documentation was used to configure branch triggers, jobs and permissions [[63]](REFERENCES.md#ref-63).
+GitHub's workflow syntax documentation was used to configure branch triggers, jobs and
+permissions [[63]](REFERENCES.md#ref-63).
 
 **My Modifications**
 
@@ -311,7 +312,8 @@ Verify the GitHub Actions workflow and proceed with EC2 Security Groups.
 
 ### Iteration 20 — EC2 Application Security Group
 
-**GitHub Pull Request(s):** [PR #16](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/16), [PR #19](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/19)
+**GitHub Pull Request(s):
+** [PR #16](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/16), [PR #19](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/19)
 
 **Objective**
 Define network access restrictions for the Java HTTP Server running on Amazon EC2.
@@ -353,7 +355,8 @@ Review the validation results and prepare IAM permissions for the EC2 applicatio
 
 ### Iteration 21 — EC2 IAM Role and Instance Profile
 
-**GitHub Pull Request(s):** [PR #17](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/17), [PR #20](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/20)
+**GitHub Pull Request(s):
+** [PR #17](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/17), [PR #20](https://github.com/maxvanny2010/L00213593_LabAssignment_1/pull/20)
 
 **Objective**
 
@@ -372,7 +375,8 @@ Define least-privilege IAM permissions for the EC2 Java application using AWS Cl
 
 **Reference Implementation**
 
-I used the official AWS CloudFormation documentation for IAM Roles [[67]](REFERENCES.md#ref-67), Instance Profiles [[68]](REFERENCES.md#ref-68),
+I used the official AWS CloudFormation documentation for IAM Roles [[67]](REFERENCES.md#ref-67), Instance
+Profiles [[68]](REFERENCES.md#ref-68),
 and Managed Policies [[70]](REFERENCES.md#ref-70). AWS documents the use of roles to supply credentials to EC2
 applications [[69]](REFERENCES.md#ref-69).
 
@@ -446,7 +450,8 @@ The bootstrap policy contains the following permission groups:
   Internet Gateway, route table and related resources.
 - `ListCloudFormationExports`, allows reading exported values from CloudFormation stacks.
 
-The `AWS::IAM::ManagedPolicy` resource supports attaching managed policies to existing IAM groups [[74]](REFERENCES.md#ref-74).
+The `AWS::IAM::ManagedPolicy` resource supports attaching managed policies to existing IAM
+groups [[74]](REFERENCES.md#ref-74).
 
 **IAM Bootstrap Deployment**
 
@@ -614,14 +619,16 @@ aws cloudformation list-exports `
 | `ATU-EC2-VpcId`          | `vpc-06f59f7a44f729242`    |
 | `ATU-EC2-PublicSubnetId` | `subnet-081a4368970f2c736` |
 
-These exported values can be imported into subsequent CloudFormation stacks using `Fn::ImportValue` [[73]](REFERENCES.md#ref-73).
+These exported values can be imported into subsequent CloudFormation stacks using
+`Fn::ImportValue` [[73]](REFERENCES.md#ref-73).
 
 **Design Decisions**
 I decided to separate the IAM bootstrap configuration from the network infrastructure.
 The bootstrap stack manages deployment permissions, while the network stack manages AWS networking resources.
 The AWS root account was used only for the initial IAM bootstrap and its required permission update.
 The EC2 network was deployed using the dedicated IAM user `atu-devops-lab`.
-This demonstrates the use of identity-based IAM policies to control access to AWS API operations [[75]](REFERENCES.md#ref-75).
+This demonstrates the use of identity-based IAM policies to control access to AWS API
+operations [[75]](REFERENCES.md#ref-75).
 
 The bootstrap policy restricts CloudFormation stack management to `ATU-EC2-Network`,
 although its Change Set ARN pattern covers Change Sets more broadly.
@@ -668,7 +675,8 @@ Deploy the EC2 application Security Group using AWS CloudFormation and verify it
 **Reference Implementation**
 The Security Group configuration follows the official AWS CloudFormation documentation [[65]](REFERENCES.md#ref-65).
 The deployment reuses the network VPC through a CloudFormation cross-stack reference [[66]](REFERENCES.md#ref-66).
-AWS documents the EC2 Security Group permissions required to create groups and manage their rules [[76]](REFERENCES.md#ref-76).
+AWS documents the EC2 Security Group permissions required to create groups and manage their
+rules [[76]](REFERENCES.md#ref-76).
 
 **Design Decisions**
 I decided to deploy the application Security Group as a separate CloudFormation stack.
@@ -758,7 +766,8 @@ AWS requires `iam:PassRole` when launching an EC2 instance with an IAM Role [[83
 **4. Amazon Linux AMI Parameter**
 Added the `ReadAmazonLinuxAmiParameter` statement.
 It grants `ssm:GetParameters` for the public Amazon Linux 2023 AMI parameter.
-This allows CloudFormation to resolve the AMI ID without hardcoding it in the instance template [[84]](REFERENCES.md#ref-84).
+This allows CloudFormation to resolve the AMI ID without hardcoding it in the instance
+template [[84]](REFERENCES.md#ref-84).
 
 **5. EC2 Instance State Management**
 Added the `ControlApplicationInstanceState` statement.
@@ -809,7 +818,8 @@ The purpose of this iteration is to provision the EC2 infrastructure for the Jav
 configuration and Docker installation will be implemented in later iterations.
 
 **Implementation**
-Created `infrastructure/ec2/instance.yaml` using the `AWS::EC2::Instance` CloudFormation resource [[78]](REFERENCES.md#ref-78).
+Created `infrastructure/ec2/instance.yaml` using the `AWS::EC2::Instance` CloudFormation
+resource [[78]](REFERENCES.md#ref-78).
 The template contains two parameters:
 
 - `InstanceType`: Defines the EC2 instance type, with `t3.micro` as the default and `t3.small` as an alternative.
@@ -884,7 +894,8 @@ The template imports:
 
 `ATU-EC2-ApplicationInstanceProfileName`
 
-The `IamInstanceProfile` property associates the existing Instance Profile with the EC2 instance [[68]](REFERENCES.md#ref-68).
+The `IamInstanceProfile` property associates the existing Instance Profile with the EC2
+instance [[68]](REFERENCES.md#ref-68).
 I selected this approach instead of creating a new IAM Role inside the EC2 instance template.
 This keeps IAM resource management separate from EC2 infrastructure deployment.
 
@@ -898,7 +909,8 @@ The `BlockDeviceMappings` configuration defines:
 - Encryption: Enabled.
 - Delete on termination: Enabled.
 
-The CloudFormation EBS properties support volume size, type, encryption and lifecycle configuration [[86]](REFERENCES.md#ref-86).
+The CloudFormation EBS properties support volume size, type, encryption and lifecycle
+configuration [[86]](REFERENCES.md#ref-86).
 I selected gp3 storage for this small application server.
 The `DeleteOnTermination` setting removes the root EBS volume when the EC2 instance is terminated, helping avoid
 retaining unused lab storage.
@@ -1164,7 +1176,8 @@ docker info >/dev/null
 docker --version
 ```
 
-Amazon Linux 2023 uses `dnf` for package management [[88]](REFERENCES.md#ref-88). The script installs Docker, enables and starts the
+Amazon Linux 2023 uses `dnf` for package management [[88]](REFERENCES.md#ref-88). The script installs Docker, enables
+and starts the
 Docker systemd service, checks its active state, and verifies that the Docker CLI can communicate with Docker Engine.
 
 Updated the `ATU-EC2-Bootstrap` CloudFormation stack through `infrastructure/bootstrap/network-deployment-access.yaml`
