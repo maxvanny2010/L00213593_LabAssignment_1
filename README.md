@@ -158,11 +158,9 @@ docs/                         Detailed documentation and screenshots
 
 ## Development History
 
-Each documented iteration links to the relevant GitHub Pull Request where available. See
-the [PR index](docs/PULL_REQUESTS.md) for project changes through PR #31. PR #31 was merged; post-audit remediation is
-prepared on the `fix/32-final-audit-remediation` branch.
+Each documented iteration links to the relevant GitHub Pull Request where available. See the [PR index](docs/PULL_REQUESTS.md) for the complete development history, including infrastructure automation, technical review, project cleanup and deployment verification evidence.
 
-The full implementation log is preserved without summarising away individual steps, test results, commands or design
+The full implementation log is preserved without summarizing away individual steps, test results, commands or design
 decisions:
 
 - [Iterations 0–16: S3, CloudFront, Lambda, API Gateway, DynamoDB and web integration](docs/DEVELOPMENT_00-16.md)
@@ -172,7 +170,7 @@ decisions:
 
 ## Documentation
 
-- [Pull Request History (PR #1–#31)](docs/PULL_REQUESTS.md)
+- [Pull Request History](docs/PULL_REQUESTS.md)
 
 - [Manual AWS Deployment Guide](docs/MANUAL_DEPLOYMENT.md)
 - [Complete bibliography with original reference numbers](docs/REFERENCES.md)
