@@ -144,6 +144,18 @@ A second complete deployment was performed in `eu-west-2` using the temporary IA
 - EC2, Docker and the Java application passed readiness checks.
 - The deployment finished with `DEPLOYMENT SUCCESSFUL`.
 
+**Figure 1 — Successful automated CloudFormation deployment.**
+
+![Seven CloudFormation stacks successfully deployed in eu-west-2](screenshots/cloudformation-deployment-success.png)
+
+**Figure 2 — API Gateway and DynamoDB integration.**
+
+![API Gateway returning a message from DynamoDB](screenshots/api-dynamodb-integration.png)
+
+**Figure 3 — Student Message Board interface (earlier functional test).**
+
+![Student Message Board displaying a DynamoDB message](screenshots/message-board.png)
+
 **Cleanup command:**
 `bash scripts/destroy.sh`
 

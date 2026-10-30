@@ -27,6 +27,22 @@ the [development history](#development-history).
 | EC2 application        | VPC, subnet, Security Group, IAM Instance Profile, EC2, Docker     | Separate Java HTTP server; private localhost health and message endpoints |
 | Automation             | CloudFormation, Maven, GitHub Actions, ECR Public, Systems Manager | IaC provisioning, builds, container publication and verification          |
 
+### Architecture Diagram
+
+The project implements two Java application architectures sharing the same Amazon DynamoDB database.
+
+![AWS CloudFormation Lab Architecture](docs/screenshots/project-architecture.png)
+
+**Architecture 1 — Serverless:** CloudFront delivers the static website from a private S3 bucket. The browser
+communicates directly with API Gateway to retrieve messages through Java Lambda and DynamoDB. The POST endpoint requires
+IAM authentication.
+
+**Architecture 2 — EC2:** CloudFormation provisions the EC2 infrastructure. EC2 UserData installs Docker and starts the
+Java HTTP application using an image from Amazon ECR Public. AWS Systems Manager provides remote verification without
+inbound SSH access.
+
+Both Java applications reuse the shared `common` Maven module and access the same DynamoDB table.
+
 The EC2 application uses the published image
 `public.ecr.aws/e1c9y1q6/atu-ec2-app:fc4b4b71c4c1a131b6be47e4e48534ad37f7e921`. The public image is reused when
 deploying into another AWS account. The EC2 application has no inbound Security Group access; its local endpoints are
