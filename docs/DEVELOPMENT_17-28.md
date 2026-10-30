@@ -1311,3 +1311,10 @@ Executed:
 **Actual Result:** `BUILD SUCCESS`.
 
 All Maven modules (`common`, `ec2-app` and `lambda-app`) built successfully.
+
+**Maven Build Verification**
+
+![Successful Maven build of the Java application](screenshots/maven-build-success.png)
+
+The Maven reactor completed successfully, confirming that the shared `common` module and the `ec2-app` application were
+built without errors.
