@@ -3,11 +3,12 @@
 [![Launch AWS Cloud Website](https://img.shields.io/badge/AWS_CLOUD-LAUNCH_WEBSITE-FF9900?style=for-the-badge&labelColor=232F3E&logo=amazonaws&logoColor=white)](https://d2caxeghfi5itf.cloudfront.net/)
 
 **Atlantic Technological University (ATU)**
-**Programme:** Postgraduate Diploma in Computing in DevOps
-**Module:** Infrastructure as Code for DevOps Pipelines
-**Lecturer:** Ruth Lennon
-**Student:** Maksym Voronianskyi
-**Student Number:** L00213593
+
+**Programme:** Postgraduate Diploma in Computing in DevOps  
+**Module:** Infrastructure as Code for DevOps Pipelines  
+**Lecturer:** Ruth Lennon  
+**Student:** Maksym Voronianskyi  
+**Student Number:** L00213593  
 **Academic Year:** 2026/2027
 
 ## Project Overview
